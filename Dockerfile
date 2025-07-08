@@ -29,8 +29,9 @@ ENV MAKE_VERSION=4.4
 
 RUN mkdir /sources && \
    cd /sources && \
-   wget https://busybox.net/downloads/busybox-${BUSYBOX_VERSION}.tar.bz2 && \
-   wget https://ftp.gnu.org/gnu/make/make-${MAKE_VERSION}.tar.gz
+   wget https://busybox.net/downloads/busybox-${BUSYBOX_VERSION}.tar.bz2 
+   # && \
+#   wget https://ftp.gnu.org/gnu/make/make-${MAKE_VERSION}.tar.gz
 
 ENV TARGET=${BUILD_ARCH}-${VENDOR}-linux-musl
 
@@ -45,8 +46,8 @@ RUN cd /sources && tar -xvf busybox-${BUSYBOX_VERSION}.tar.bz2 && \
     sed -i 's/\(CONFIG_FEATURE_UTMP\)=y/# \1 is not set/' .config && \
     sed -i 's/\(CONFIG_UDPSVD\)=y/# \1 is not set/' .config && \
     sed -i 's/\(CONFIG_TCPSVD\)=y/# \1 is not set/' .config && \
+    sed -i 's/\(CONFIG_TC\)=y/# \1 is not set/' .config && \
     make ARCH="${ARCH}" CROSS_COMPILE="${TARGET}-" && \
-    make ARCH="${ARCH}" CROSS_COMPILE="${TARGET}-"\
-  CONFIG_PREFIX="/sysroot" install && \
-    cp -v examples/depmod.pl /mussel/toolchain/bin && \
-    chmod -v 755 /mussel/toolchain/bin/depmod.pl
+    make ARCH="${ARCH}" CROSS_COMPILE="${TARGET}-" CONFIG_PREFIX="/" install
+    #cp -v examples/depmod.pl /mussel/toolchain/bin && \
+    #chmod -v 755 /mussel/toolchain/bin/depmod.pl
