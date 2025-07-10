@@ -73,7 +73,7 @@ RUN cd /sources && tar -xvf busybox-${BUSYBOX_VERSION}.tar.bz2 && \
 ###
 FROM stage0 as musl-stage0
 
-ARG MUSL_VERSION=1.2.3
+ARG MUSL_VERSION=1.2.5
 ENV MUSL_VERSION=${MUSL_VERSION}
 
 RUN wget http://musl.libc.org/releases/musl-${MUSL_VERSION}.tar.gz && \
