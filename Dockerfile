@@ -21,7 +21,6 @@ ENV ARCH=${ARCH}
 ENV MUSSEL_VERSION=${MUSSEL_VERSION}
 ENV JOBS=${JOBS}
 
-COPY ./config.mak ./config.mak
 RUN apk update && \
   apk add git bash wget bash perl build-base make patch busybox-static curl && git clone https://github.com/firasuke/mussel.git &&  \
   cd mussel && \
@@ -73,9 +72,13 @@ RUN cd /sources && tar -xvf busybox-${BUSYBOX_VERSION}.tar.bz2 && \
 ### MUSL
 ###
 FROM stage0 as musl-stage0
-RUN wget http://musl.libc.org/releases/musl-1.2.3.tar.gz && \
-    tar -xvf musl-1.2.3.tar.gz && \
-    cd musl-1.2.3 && \
+
+ARG MUSL_VERSION=1.2.3
+ENV MUSL_VERSION=${MUSL_VERSION}
+
+RUN wget http://musl.libc.org/releases/musl-${MUSL_VERSION}.tar.gz && \
+    tar -xvf musl-${MUSL_VERSION}.tar.gz && \
+    cd musl-${MUSL_VERSION} && \
     ./configure \
       CROSS_COMPILE=${TARGET}- \
       --prefix=/ \
