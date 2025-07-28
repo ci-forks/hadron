@@ -556,8 +556,8 @@ FROM rsync AS coreutils
 ARG COREUTILS_VERSION=9.4
 ENV COREUTILS_VERSION=${COREUTILS_VERSION}
 
-COPY --from=libressl /libressl /libressl
-RUN rsync -aHAX --keep-dirlinks  /libressl/. /
+# COPY --from=libressl /libressl /libressl
+# RUN rsync -aHAX --keep-dirlinks  /libressl/. /
 
 RUN mkdir -p /sources && cd /sources && wget http://ftp.gnu.org/gnu/coreutils/coreutils-${COREUTILS_VERSION}.tar.xz && \
     tar -xvf coreutils-${COREUTILS_VERSION}.tar.xz && mv coreutils-${COREUTILS_VERSION} coreutils && \
@@ -571,9 +571,9 @@ RUN mkdir -p /sources && cd /sources && wget http://ftp.gnu.org/gnu/coreutils/co
     --enable-no-install-program=hostname,su,kill,uptime \
     --enable-single-binary=symlinks \
     --enable-single-binary-exceptions=env,fmt,sha512sum \
-    --with-openssl \
+  #  --with-openssl \
     --disable-dependency-tracking && make DESTDIR=/coreutils && \
-    make DESTDIR=/coreutils install && make install
+    make DESTDIR=/coreutils install
 
 ## ncurses
 FROM stage1 AS ncurses
