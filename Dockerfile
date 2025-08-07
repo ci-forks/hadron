@@ -86,6 +86,26 @@ ENV CA_CERTIFICATES_VERSION=${CA_CERTIFICATES_VERSION}
 
 RUN cd /sources/downloads && wget https://gitlab.alpinelinux.org/alpine/ca-certificates/-/archive/${CA_CERTIFICATES_VERSION}/ca-certificates-${CA_CERTIFICATES_VERSION}.tar.bz2 -O ca-certificates-${CA_CERTIFICATES_VERSION}.tar.bz2
 
+ARG SYSTEMD_VERSION=257.6
+ENV SYSTEMD_VERSION=${SYSTEMD_VERSION}
+
+RUN cd /sources/downloads && wget https://github.com/systemd/systemd/archive/refs/tags/v${SYSTEMD_VERSION}.tar.gz -O systemd-${SYSTEMD_VERSION}.tar.gz
+
+ARG LIBCAP_VERSION=2.76
+ENV LIBCAP_VERSION=${LIBCAP_VERSION}
+
+RUN cd /sources/downloads && wget https://kernel.org/pub/linux/libs/security/linux-privs/libcap2/libcap-${LIBCAP_VERSION}.tar.xz -O libcap-${LIBCAP_VERSION}.tar.xz
+
+ARG UTIL_LINUX_VERSION=2.41.1
+ARG UTIL_LINUX_VERSION_MAJOR=2.41
+ENV UTIL_LINUX_VERSION=${UTIL_LINUX_VERSION}
+
+RUN cd /sources/downloads && wget https://www.kernel.org/pub/linux/utils/util-linux/v${UTIL_LINUX_VERSION_MAJOR}/util-linux-${UTIL_LINUX_VERSION}.tar.xz -O util-linux-${UTIL_LINUX_VERSION}.tar.xz
+
+ARG PYTHON_VERSION=3.12.11
+ENV PYTHON_VERSION=${PYTHON_VERSION}
+RUN cd /sources/downloads && wget https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tar.xz -O Python-${PYTHON_VERSION}.tar.xz
+
 FROM stage0 AS skeleton
 
 COPY ./setup_rootfs.sh ./setup_rootfs.sh
@@ -583,24 +603,27 @@ RUN mkdir /sources && cd /sources && wget http://ftp.gnu.org/gnu/ncurses/ncurses
     cp /ncurses/usr/lib/libncurses.so /usr/lib/libncurses.so
 
 ## util-linux
-# FROM stage1 AS util-linux
+FROM stage1 AS util-linux
 
-# ARG UTIL_LINUX_VERSION=2.39.1
-# ENV UTIL_LINUX_VERSION=${UTIL_LINUX_VERSION}
+ARG UTIL_LINUX_VERSION=2.41.1
+ENV UTIL_LINUX_VERSION=${UTIL_LINUX_VERSION}
 
-# RUN mkdir /sources && cd /sources && wget http://ftp.gnu.org/gnu/util-linux/util-linux-${UTIL_LINUX_VERSION}.tar.xz && \
-#     tar -xvf util-linux-${UTIL_LINUX_VERSION}.tar.xz && mv util-linux-${UTIL_LINUX_VERSION} util-linux && \
-#     cd util-linux && mkdir -p /util-linux && ./configure ${COMMON_ARGS} --disable-dependency-tracking  --enable-libuuid --enable-libblkid \
-#     --enable-fsck --enable-kill --enable-last --enable-mesg \
-#     --enable-mount --enable-partx --enable-rfkill \
-#     --enable-unshare --enable-write \
-#     --disable-bfs --disable-login \
-#     --disable-makeinstall-chown --disable-minix --disable-newgrp \
-#     --disable-use-tty-group --disable-vipw --disable-raw \
-#     --without-udev && make DESTDIR=/util-linux && \
-#     make DESTDIR=/util-linux install && make install
+COPY --from=sources-downloader /sources/downloads/util-linux-${UTIL_LINUX_VERSION}.tar.xz /sources/
 
-
+RUN mkdir -p /sources && cd /sources && tar -xvf util-linux-${UTIL_LINUX_VERSION}.tar.xz && \
+    mv util-linux-${UTIL_LINUX_VERSION} util-linux && \
+    cd util-linux && mkdir -p /util-linux && ./configure ${COMMON_ARGS} --disable-dependency-tracking  --prefix=/usr \
+    --libdir=/usr/lib \
+    --disable-silent-rules \
+    --enable-newgrp \
+    --disable-uuidd \
+    --disable-nls \
+    --disable-kill \
+    --disable-chfn-chsh \
+    --with-vendordir=/usr/lib \
+    --enable-fs-paths-extra=/usr/sbin \
+    && make DESTDIR=/util-linux && \
+    make DESTDIR=/util-linux install && make install
 
 ## m4 (from stage1, ready to be used in the final image)
 FROM stage1 AS m4
@@ -800,6 +823,76 @@ RUN mkdir -p /sources && cd /sources && tar -xvf curl-${CURL_VERSION}.tar.gz && 
     --without-libssh2 && make DESTDIR=/curl && \
     make DESTDIR=/curl install && make install
 
+## python
+FROM stage1 AS python
+
+ARG PYTHON_VERSION=3.12.11
+ENV PYTHON_VERSION=${PYTHON_VERSION}
+
+COPY --from=sources-downloader /sources/downloads/Python-${PYTHON_VERSION}.tar.xz /sources/
+
+RUN mkdir -p /sources && cd /sources && tar -xvf Python-${PYTHON_VERSION}.tar.xz && mv Python-${PYTHON_VERSION} python && \
+    cd python && mkdir -p /python && ./configure ${COMMON_ARGS} --disable-dependency-tracking --prefix=/usr \
+    --enable-ipv6 \
+    --enable-loadable-sqlite-extensions \
+    --enable-optimizations \
+    --enable-shared \
+    --with-lto \
+    --with-computed-gotos \
+    --with-dbmliborder=gdbm:ndbm \
+    --with-system-expat \
+    --with-system-libmpdec \
+    --without-ensurepip && make DESTDIR=/python && \
+    make DESTDIR=/python install && make install
+
+## libcap
+FROM bash AS libcap
+
+ARG LIBCAP_VERSION=2.76
+ENV LIBCAP_VERSION=${LIBCAP_VERSION}
+
+COPY --from=sources-downloader /sources/downloads/libcap-${LIBCAP_VERSION}.tar.xz /sources/
+
+RUN ln -s /bin/bash /bin/sh && mkdir -p /sources && cd /sources && tar -xvf libcap-${LIBCAP_VERSION}.tar.xz && mv libcap-${LIBCAP_VERSION} libcap && \
+    cd libcap && mkdir -p /libcap && make BUILD_CC=gcc CC="${CC:-gcc}" lib=lib prefix=/usr GOLANG=no DESTDIR=/libcap && \
+    make DESTDIR=/libcap install && make install
+
+## gperf
+FROM stage1 AS gperf
+
+ARG GPERF_VERSION=3.3
+ENV GPERF_VERSION=${GPERF_VERSION}
+
+RUN mkdir -p /sources && cd /sources && wget http://ftp.gnu.org/gnu/gperf/gperf-${GPERF_VERSION}.tar.gz && \
+    tar -xvf gperf-${GPERF_VERSION}.tar.gz && mv gperf-${GPERF_VERSION} gperf && \
+    cd gperf && mkdir -p /gperf && ./configure ${COMMON_ARGS} --disable-dependency-tracking --prefix=/usr && \
+    make BUILD_CC=gcc CC="${CC:-gcc}" lib=lib prefix=/usr GOLANG=no DESTDIR=/gperf && \
+    make DESTDIR=/gperf install && make install
+
+## systemd
+FROM rsync as systemd
+
+ARG SYSTEMD_VERSION=257.6
+ENV SYSTEMD_VERSION=${SYSTEMD_VERSION}
+
+COPY --from=gperf /gperf /gperf
+RUN rsync -aHAX --keep-dirlinks  /gperf/. /
+
+COPY --from=libcap /libcap /libcap
+RUN rsync -aHAX --keep-dirlinks  /libcap/. /
+
+COPY --from=util-linux /util-linux /util-linux
+RUN rsync -aHAX --keep-dirlinks  /util-linux/. /
+
+COPY --from=python /python /python
+RUN rsync -aHAX --keep-dirlinks  /python/. /
+
+COPY --from=sources-downloader /sources/downloads/systemd-${SYSTEMD_VERSION}.tar.gz /sources/
+
+RUN mkdir -p /sources && cd /sources && tar -xvf systemd-${SYSTEMD_VERSION}.tar.gz && mv systemd-${SYSTEMD_VERSION} systemd && \
+    cd systemd && mkdir -p /systemd && ./configure ${COMMON_ARGS} --disable-dependency-tracking && make DESTDIR=/systemd && \
+    make DESTDIR=/systemd install && make install
+
 ########################################################
 #
 # Stage 2 - Building the final image
@@ -871,6 +964,10 @@ RUN rsync -aHAX --keep-dirlinks  /zstd/. /skeleton/
 ## libz
 COPY --from=zlib /zlib /zlib
 RUN rsync -aHAX --keep-dirlinks  /zlib/. /skeleton/
+
+## systemd
+COPY --from=systemd /systemd /systemd
+RUN rsync -aHAX --keep-dirlinks  /systemd/. /skeleton/
 
 ## Cleanup
 
