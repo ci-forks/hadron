@@ -106,6 +106,11 @@ ARG PYTHON_VERSION=3.12.11
 ENV PYTHON_VERSION=${PYTHON_VERSION}
 RUN cd /sources/downloads && wget https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tar.xz -O Python-${PYTHON_VERSION}.tar.xz
 
+ARG SQLITE3_VERSION=3500400
+ENV SQLITE3_VERSION=${SQLITE3_VERSION}
+
+RUN cd /sources/downloads && wget https://www.sqlite.org/2025/sqlite-autoconf-${SQLITE3_VERSION}.tar.gz -O sqlite-autoconf-${SQLITE3_VERSION}.tar.gz
+
 FROM stage0 AS skeleton
 
 COPY ./setup_rootfs.sh ./setup_rootfs.sh
@@ -602,28 +607,7 @@ RUN mkdir /sources && cd /sources && wget http://ftp.gnu.org/gnu/ncurses/ncurses
     make DESTDIR=/ncurses TIC_PATH=/sources/ncurses/build/progs/tic install && make install && echo "INPUT(-lncursesw)" > /ncurses/usr/lib/libncurses.so && \
     cp /ncurses/usr/lib/libncurses.so /usr/lib/libncurses.so
 
-## util-linux
-FROM stage1 AS util-linux
 
-ARG UTIL_LINUX_VERSION=2.41.1
-ENV UTIL_LINUX_VERSION=${UTIL_LINUX_VERSION}
-
-COPY --from=sources-downloader /sources/downloads/util-linux-${UTIL_LINUX_VERSION}.tar.xz /sources/
-
-RUN mkdir -p /sources && cd /sources && tar -xvf util-linux-${UTIL_LINUX_VERSION}.tar.xz && \
-    mv util-linux-${UTIL_LINUX_VERSION} util-linux && \
-    cd util-linux && mkdir -p /util-linux && ./configure ${COMMON_ARGS} --disable-dependency-tracking  --prefix=/usr \
-    --libdir=/usr/lib \
-    --disable-silent-rules \
-    --enable-newgrp \
-    --disable-uuidd \
-    --disable-nls \
-    --disable-kill \
-    --disable-chfn-chsh \
-    --with-vendordir=/usr/lib \
-    --enable-fs-paths-extra=/usr/sbin \
-    && make DESTDIR=/util-linux && \
-    make DESTDIR=/util-linux install && make install
 
 ## m4 (from stage1, ready to be used in the final image)
 FROM stage1 AS m4
@@ -785,6 +769,53 @@ RUN mkdir -p /sources && cd /sources && tar -xvf ca-certificates-${CA_CERTIFICAT
 COPY ./files/ca-certificates/post_install.sh /sources/post_install.sh
 RUN bash /sources/post_install.sh
 
+## sqlite3 
+FROM rsync AS sqlite3
+
+ARG SQLITE3_VERSION=3500400
+ENV SQLITE3_VERSION=${SQLITE3_VERSION}
+
+ENV CFLAGS="${CFLAGS//-Os/-O2} -DSQLITE_ENABLE_FTS3_PARENTHESIS -DSQLITE_ENABLE_COLUMN_METADATA -DSQLITE_SECURE_DELETE -DSQLITE_ENABLE_UNLOCK_NOTIFY 	-DSQLITE_ENABLE_RTREE 	-DSQLITE_ENABLE_GEOPOLY 	-DSQLITE_USE_URI 	-DSQLITE_ENABLE_DBSTAT_VTAB 	-DSQLITE_SOUNDEX 	-DSQLITE_MAX_VARIABLE_NUMBER=250000"
+
+COPY --from=sources-downloader /sources/downloads/sqlite-autoconf-${SQLITE3_VERSION}.tar.gz /sources/
+
+RUN mkdir -p /sources && cd /sources && tar -xvf sqlite-autoconf-${SQLITE3_VERSION}.tar.gz && \
+    mv sqlite-autoconf-${SQLITE3_VERSION} sqlite3 && \
+    cd sqlite3 && mkdir -p /sqlite3 && ./configure \
+		--prefix=/usr \
+		--enable-threadsafe \
+		--enable-session \
+		--enable-static \
+		--enable-fts3 \
+		--enable-fts4 \
+		--enable-fts5 \
+		--soname=legacy && \
+    make && \
+    make DESTDIR=/sqlite3 install && make install
+
+## util-linux
+FROM sqlite3 AS util-linux
+
+ARG UTIL_LINUX_VERSION=2.41.1
+ENV UTIL_LINUX_VERSION=${UTIL_LINUX_VERSION}
+
+COPY --from=sources-downloader /sources/downloads/util-linux-${UTIL_LINUX_VERSION}.tar.xz /sources/
+
+RUN mkdir -p /sources && cd /sources && tar -xvf util-linux-${UTIL_LINUX_VERSION}.tar.xz && \
+    mv util-linux-${UTIL_LINUX_VERSION} util-linux && \
+    cd util-linux && mkdir -p /util-linux && ./configure ${COMMON_ARGS} --disable-dependency-tracking  --prefix=/usr \
+    --libdir=/usr/lib \
+    --disable-silent-rules \
+    --enable-newgrp \
+    --disable-uuidd \
+    --disable-nls \
+    --disable-kill \
+    --disable-chfn-chsh \
+    --with-vendordir=/usr/lib \
+    --enable-fs-paths-extra=/usr/sbin \
+    && make DESTDIR=/util-linux && \
+    make DESTDIR=/util-linux install && make install
+
 ## curl
 FROM rsync AS curl
 
@@ -832,7 +863,7 @@ ENV PYTHON_VERSION=${PYTHON_VERSION}
 COPY --from=sources-downloader /sources/downloads/Python-${PYTHON_VERSION}.tar.xz /sources/
 
 RUN mkdir -p /sources && cd /sources && tar -xvf Python-${PYTHON_VERSION}.tar.xz && mv Python-${PYTHON_VERSION} python && \
-    cd python && mkdir -p /python && ./configure ${COMMON_ARGS} --disable-dependency-tracking --prefix=/usr \
+    cd python && mkdir -p /python && ./configure --disable-dependency-tracking --prefix=/usr \
     --enable-ipv6 \
     --enable-loadable-sqlite-extensions \
     --enable-optimizations \
