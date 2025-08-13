@@ -873,10 +873,10 @@ RUN mkdir -p /sources && cd /sources && tar -xvf Python-${PYTHON_VERSION}.tar.xz
     --with-lto \
     --with-computed-gotos \
     --with-dbmliborder=gdbm:ndbm \
-    --with-system-expat \
-    --with-system-libmpdec \
     --without-ensurepip && make DESTDIR=/python && \
     make DESTDIR=/python install && make install
+    #--with-system-libmpdec \
+    #--with-system-expat \
 
 ## libcap
 FROM bash AS libcap
@@ -886,7 +886,7 @@ ENV LIBCAP_VERSION=${LIBCAP_VERSION}
 
 COPY --from=sources-downloader /sources/downloads/libcap-${LIBCAP_VERSION}.tar.xz /sources/
 
-RUN ln -s /bin/bash /bin/sh && mkdir -p /sources && cd /sources && tar -xvf libcap-${LIBCAP_VERSION}.tar.xz && mv libcap-${LIBCAP_VERSION} libcap && \
+RUN mkdir -p /sources && cd /sources && tar -xvf libcap-${LIBCAP_VERSION}.tar.xz && mv libcap-${LIBCAP_VERSION} libcap && \
     cd libcap && mkdir -p /libcap && make BUILD_CC=gcc CC="${CC:-gcc}" lib=lib prefix=/usr GOLANG=no DESTDIR=/libcap && \
     make DESTDIR=/libcap install && make install
 
