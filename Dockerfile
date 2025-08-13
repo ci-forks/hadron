@@ -794,10 +794,11 @@ RUN mkdir -p /sources && cd /sources && tar -xvf sqlite-autoconf-${SQLITE3_VERSI
     make DESTDIR=/sqlite3 install && make install
 
 ## util-linux
-FROM sqlite3 AS util-linux
+FROM bash AS util-linux
 
 ARG UTIL_LINUX_VERSION=2.41.1
 ENV UTIL_LINUX_VERSION=${UTIL_LINUX_VERSION}
+
 
 COPY --from=sources-downloader /sources/downloads/util-linux-${UTIL_LINUX_VERSION}.tar.xz /sources/
 
@@ -808,6 +809,7 @@ RUN mkdir -p /sources && cd /sources && tar -xvf util-linux-${UTIL_LINUX_VERSION
     --disable-silent-rules \
     --enable-newgrp \
     --disable-uuidd \
+    --disable-liblastlog2 \
     --disable-nls \
     --disable-kill \
     --disable-chfn-chsh \
