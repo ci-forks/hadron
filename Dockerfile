@@ -802,7 +802,7 @@ ENV UTIL_LINUX_VERSION=${UTIL_LINUX_VERSION}
 
 COPY --from=sources-downloader /sources/downloads/util-linux-${UTIL_LINUX_VERSION}.tar.xz /sources/
 
-RUN mkdir -p /sources && cd /sources && tar -xvf util-linux-${UTIL_LINUX_VERSION}.tar.xz && \
+RUN rm /bin/sh && ln -s /bin/bash /bin/sh && mkdir -p /sources && cd /sources && tar -xvf util-linux-${UTIL_LINUX_VERSION}.tar.xz && \
     mv util-linux-${UTIL_LINUX_VERSION} util-linux && \
     cd util-linux && mkdir -p /util-linux && ./configure ${COMMON_ARGS} --disable-dependency-tracking  --prefix=/usr \
     --libdir=/usr/lib \
