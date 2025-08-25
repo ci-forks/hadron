@@ -111,6 +111,22 @@ ENV SQLITE3_VERSION=${SQLITE3_VERSION}
 
 RUN cd /sources/downloads && wget https://www.sqlite.org/2025/sqlite-autoconf-${SQLITE3_VERSION}.tar.gz -O sqlite-autoconf-${SQLITE3_VERSION}.tar.gz
 
+## systemd patches
+RUN apk add git patch
+
+ARG OE_CORE_VERSION=master
+ENV OE_CORE_VERSION=${OE_CORE_VERSION}
+
+# Extract systemd and apply patches
+RUN cd /sources/downloads && tar -xvf systemd-${SYSTEMD_VERSION}.tar.gz && \
+    mv systemd-${SYSTEMD_VERSION} systemd
+RUN cd /sources/downloads && git clone https://github.com/openembedded/openembedded-core && \
+    cd openembedded-core && \
+    git checkout ${OE_CORE_VERSION}
+COPY patches/apply_all.sh /apply_all.sh
+RUN chmod +x /apply_all.sh
+RUN /apply_all.sh /sources/downloads/openembedded-core/meta/recipes-core/systemd/systemd/ /sources/downloads/systemd
+
 FROM stage0 AS skeleton
 
 COPY ./setup_rootfs.sh ./setup_rootfs.sh
@@ -870,10 +886,10 @@ RUN mkdir -p /sources && cd /sources && tar -xvf Python-${PYTHON_VERSION}.tar.xz
     --enable-loadable-sqlite-extensions \
     --enable-optimizations \
     --enable-shared \
+    --with-ensurepip=install \
     --with-lto \
     --with-computed-gotos \
-    --with-dbmliborder=gdbm:ndbm \
-    --without-ensurepip && make DESTDIR=/python && \
+    --with-dbmliborder=gdbm:ndbm && make DESTDIR=/python && \
     make DESTDIR=/python install && make install
     #--with-system-libmpdec \
     #--with-system-expat \
@@ -920,10 +936,9 @@ RUN rsync -aHAX --keep-dirlinks  /util-linux/. /
 COPY --from=python /python /python
 RUN rsync -aHAX --keep-dirlinks  /python/. /
 
-COPY --from=sources-downloader /sources/downloads/systemd-${SYSTEMD_VERSION}.tar.gz /sources/
+COPY --from=sources-downloader /sources/downloads/systemd /sources/downloads/systemd
 
-RUN mkdir -p /sources && cd /sources && tar -xvf systemd-${SYSTEMD_VERSION}.tar.gz && mv systemd-${SYSTEMD_VERSION} systemd && \
-    cd systemd && mkdir -p /systemd && ./configure ${COMMON_ARGS} --disable-dependency-tracking && make DESTDIR=/systemd && \
+RUN mkdir -p /sources && cd /sources/downloads/systemd && mkdir -p /systemd && ./configure ${COMMON_ARGS} --disable-dependency-tracking && make DESTDIR=/systemd && \
     make DESTDIR=/systemd install && make install
 
 ########################################################
