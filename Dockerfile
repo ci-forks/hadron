@@ -127,6 +127,10 @@ COPY patches/apply_all.sh /apply_all.sh
 RUN chmod +x /apply_all.sh
 RUN /apply_all.sh /sources/downloads/openembedded-core/meta/recipes-core/systemd/systemd/ /sources/downloads/systemd
 
+ARG OPENSSL_VERSION=3.5.2
+ENV OPENSSL_VERSION=${OPENSSL_VERSION}
+RUN cd /sources/downloads && wget https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz 
+
 FROM stage0 AS skeleton
 
 COPY ./setup_rootfs.sh ./setup_rootfs.sh
@@ -359,40 +363,6 @@ RUN ./test
 #
 ########################################################
 
-## libressl
-FROM stage1 AS libressl
-
-ARG LIBRESSL_VERSION=4.1.0
-ENV LIBRESSL_VERSION=${LIBRESSL_VERSION}
-
-RUN mkdir /sources && cd /sources && wget http://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-${LIBRESSL_VERSION}.tar.gz && \
-    tar -xvf libressl-${LIBRESSL_VERSION}.tar.gz && mv libressl-${LIBRESSL_VERSION} libressl && \
-    cd libressl && mkdir -p /libressl && ./configure --prefix=/usr --disable-dependency-tracking ${COMMON_ARGS} && make DESTDIR=/libressl && \
-    make DESTDIR=/libressl install && make install
-
-## Busybox (from stage1, ready to be used in the final image)
-FROM libressl AS busybox
-
-COPY --from=busybox-stage0 /sources /sources
-
-ARG BUSYBOX_VERSION=1.37.0
-ENV BUSYBOX_VERSION=${BUSYBOX_VERSION}
-
-RUN cd /sources && rm -rfv busybox-${BUSYBOX_VERSION} && tar -xvf busybox-${BUSYBOX_VERSION}.tar.bz2 && \
-    cd busybox-${BUSYBOX_VERSION} && \
-    make -j1 distclean && \
-    make defconfig && \
-    sed -i 's/\(CONFIG_\)\(.*\)\(INETD\)\(.*\)=y/# \1\2\3\4 is not set/g' .config && \
-    sed -i 's/\(CONFIG_IFPLUGD\)=y/# \1 is not set/' .config && \
-    sed -i 's/\(CONFIG_FEATURE_WTMP\)=y/# \1 is not set/' .config && \
-    sed -i 's/\(CONFIG_FEATURE_UTMP\)=y/# \1 is not set/' .config && \
-    sed -i 's/\(CONFIG_UDPSVD\)=y/# \1 is not set/' .config && \
-    sed -i 's/\(CONFIG_TCPSVD\)=y/# \1 is not set/' .config && \
-    sed -i 's/\(CONFIG_TC\)=y/# \1 is not set/' .config
-RUN cd /sources/busybox-${BUSYBOX_VERSION} && \
-    make -j1 && \
-    make CONFIG_PREFIX="/sysroot" install && make install
-
 ## musl
 FROM stage1 AS musl
 
@@ -575,30 +545,6 @@ RUN mkdir /sources && cd /sources && wget https://ftp.gnu.org/gnu/binutils/binut
     cd binutils && mkdir -p /binutils && ./configure ${COMMON_ARGS} && make DESTDIR=/binutils && \
     make DESTDIR=/binutils install && make install
 
-## coreutils
-FROM rsync AS coreutils
-
-ARG COREUTILS_VERSION=9.4
-ENV COREUTILS_VERSION=${COREUTILS_VERSION}
-
-# COPY --from=libressl /libressl /libressl
-# RUN rsync -aHAX --keep-dirlinks  /libressl/. /
-
-RUN mkdir -p /sources && cd /sources && wget http://ftp.gnu.org/gnu/coreutils/coreutils-${COREUTILS_VERSION}.tar.xz && \
-    tar -xvf coreutils-${COREUTILS_VERSION}.tar.xz && mv coreutils-${COREUTILS_VERSION} coreutils && \
-    cd coreutils && mkdir -p /coreutils && ./configure ${COMMON_ARGS} \
-    --prefix=/usr \
-    --bindir=/bin \
-    --sysconfdir=/etc \
-    --mandir=/usr/share/man \
-    --infodir=/usr/share/info \
-    --disable-nls \
-    --enable-no-install-program=hostname,su,kill,uptime \
-    --enable-single-binary=symlinks \
-    --enable-single-binary-exceptions=env,fmt,sha512sum \
-  #  --with-openssl \
-    --disable-dependency-tracking && make DESTDIR=/coreutils && \
-    make DESTDIR=/coreutils install
 
 ## ncurses
 FROM stage1 AS ncurses
@@ -720,6 +666,78 @@ RUN cd /sources && \
        -Duse64bitint && make libperl.so && \
         make DESTDIR=/perl -j 8 && make DESTDIR=/perl install && make install
 
+
+## openssl
+FROM rsync AS openssl
+
+ARG OPENSSL_VERSION=3.5.2
+ENV OPENSSL_VERSION=${OPENSSL_VERSION}
+
+COPY --from=perl /perl /perl
+RUN rsync -aHAX --keep-dirlinks  /perl/. /
+
+COPY --from=zlib /zlib /zlib
+RUN rsync -aHAX --keep-dirlinks  /zlib/. /
+
+COPY --from=sources-downloader /sources/downloads/openssl-${OPENSSL_VERSION}.tar.gz /sources/
+
+RUN cd /sources && tar -xvf openssl-${OPENSSL_VERSION}.tar.gz && mv openssl-${OPENSSL_VERSION} openssl && \
+    cd openssl && mkdir -p /openssl && ./config --prefix=/usr         \
+    --openssldir=/etc/ssl \
+    --libdir=lib          \
+    shared                \
+    zlib-dynamic 2>&1 && \
+    make DESTDIR=/openssl 2>&1  && \
+    make DESTDIR=/openssl install && make install
+
+## Busybox (from stage1, ready to be used in the final image)
+FROM openssl AS busybox
+
+COPY --from=busybox-stage0 /sources /sources
+
+ARG BUSYBOX_VERSION=1.37.0
+ENV BUSYBOX_VERSION=${BUSYBOX_VERSION}
+
+RUN cd /sources && rm -rfv busybox-${BUSYBOX_VERSION} && tar -xvf busybox-${BUSYBOX_VERSION}.tar.bz2 && \
+    cd busybox-${BUSYBOX_VERSION} && \
+    make -j1 distclean && \
+    make defconfig && \
+    sed -i 's/\(CONFIG_\)\(.*\)\(INETD\)\(.*\)=y/# \1\2\3\4 is not set/g' .config && \
+    sed -i 's/\(CONFIG_IFPLUGD\)=y/# \1 is not set/' .config && \
+    sed -i 's/\(CONFIG_FEATURE_WTMP\)=y/# \1 is not set/' .config && \
+    sed -i 's/\(CONFIG_FEATURE_UTMP\)=y/# \1 is not set/' .config && \
+    sed -i 's/\(CONFIG_UDPSVD\)=y/# \1 is not set/' .config && \
+    sed -i 's/\(CONFIG_TCPSVD\)=y/# \1 is not set/' .config && \
+    sed -i 's/\(CONFIG_TC\)=y/# \1 is not set/' .config
+RUN cd /sources/busybox-${BUSYBOX_VERSION} && \
+    make -j1 && \
+    make CONFIG_PREFIX="/sysroot" install && make install
+
+## coreutils
+FROM rsync AS coreutils
+
+ARG COREUTILS_VERSION=9.4
+ENV COREUTILS_VERSION=${COREUTILS_VERSION}
+
+COPY --from=openssl /openssl /openssl
+RUN rsync -aHAX --keep-dirlinks  /openssl/. /
+
+RUN mkdir -p /sources && cd /sources && wget http://ftp.gnu.org/gnu/coreutils/coreutils-${COREUTILS_VERSION}.tar.xz && \
+    tar -xvf coreutils-${COREUTILS_VERSION}.tar.xz && mv coreutils-${COREUTILS_VERSION} coreutils && \
+    cd coreutils && mkdir -p /coreutils && ./configure ${COMMON_ARGS} \
+    --prefix=/usr \
+    --bindir=/bin \
+    --sysconfdir=/etc \
+    --mandir=/usr/share/man \
+    --infodir=/usr/share/info \
+    --disable-nls \
+    --enable-no-install-program=hostname,su,kill,uptime \
+    --enable-single-binary=symlinks \
+    --enable-single-binary-exceptions=env,fmt,sha512sum \
+    --with-openssl \
+    --disable-dependency-tracking && make DESTDIR=/coreutils && \
+    make DESTDIR=/coreutils install
+
 ## findutils
 FROM stage1 AS findutils
 
@@ -751,8 +769,8 @@ FROM rsync AS ca-certificates
 ARG CA_CERTIFICATES_VERSION=20250619
 ENV CA_CERTIFICATES_VERSION=${CA_CERTIFICATES_VERSION}
 
-COPY --from=libressl /libressl /libressl
-RUN rsync -aHAX --keep-dirlinks  /libressl/. /
+COPY --from=openssl /openssl /openssl
+RUN rsync -aHAX --keep-dirlinks  /openssl/. /
 
 COPY --from=perl /perl /perl
 RUN rsync -aHAX --keep-dirlinks  /perl/. /
@@ -840,8 +858,8 @@ FROM rsync AS curl
 COPY --from=ca-certificates /ca-certificates /ca-certificates
 RUN rsync -aHAX --keep-dirlinks  /ca-certificates/. /
 
-COPY --from=libressl /libressl /libressl
-RUN rsync -aHAX --keep-dirlinks  /libressl/. /
+COPY --from=openssl /openssl /openssl
+RUN rsync -aHAX --keep-dirlinks  /openssl/. /
 
 COPY --from=zstd /zstd /zstd
 RUN rsync -aHAX --keep-dirlinks  /zstd/. /
@@ -878,8 +896,8 @@ FROM rsync AS python
 ARG PYTHON_VERSION=3.12.11
 ENV PYTHON_VERSION=${PYTHON_VERSION}
 
-COPY --from=libressl /libressl /libressl
-RUN rsync -aHAX --keep-dirlinks  /libressl/. /
+COPY --from=openssl /openssl /openssl
+RUN rsync -aHAX --keep-dirlinks  /openssl/. /
 
 COPY --from=bash /bash /bash
 RUN rsync -aHAX --keep-dirlinks  /bash/. /
@@ -901,8 +919,8 @@ RUN rm /bin/sh && ln -s /bin/bash /bin/sh && mkdir -p /sources && cd /sources &&
     --with-ensurepip=install \
     --with-lto \
     --with-computed-gotos \
-    --with-dbmliborder=gdbm:ndbm && make DESTDIR=/python && \
-    make DESTDIR=/python install && make install
+    --with-dbmliborder=gdbm:ndbm  2>&1 && make DESTDIR=/python  2>&1 && \
+    make DESTDIR=/python install  2>&1 && make install 2>&1
     #--with-system-libmpdec \
     #--with-system-expat \
 
@@ -985,9 +1003,9 @@ RUN rsync -aHAX --keep-dirlinks  /coreutils/. /skeleton/
 COPY --from=curl /curl /curl
 RUN rsync -aHAX --keep-dirlinks  /curl/. /skeleton/
 
-## LibreSSL
-COPY --from=libressl /libressl /libressl
-RUN rsync -aHAX --keep-dirlinks  /libressl/. /skeleton/
+## OpenSSL
+COPY --from=openssl /openssl /openssl
+RUN rsync -aHAX --keep-dirlinks  /openssl/. /skeleton/
 
 ## ca-certificates
 COPY --from=ca-certificates /ca-certificates /ca-certificates
