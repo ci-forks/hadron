@@ -95,7 +95,7 @@ RUN cd /sources/downloads && wget https://github.com/systemd/systemd/archive/ref
 ## systemd patches
 RUN apk add git patch
 
-ARG OE_CORE_VERSION=bed605e7cd095f210e24f1e07dab6f814d0bbb59
+ARG OE_CORE_VERSION=30140cb9354fa535f68fab58e73b76f0cca342e4
 ENV OE_CORE_VERSION=${OE_CORE_VERSION}
 
 # Extract systemd and apply patches
