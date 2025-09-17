@@ -89,7 +89,26 @@ RUN cd /sources/downloads && wget https://gitlab.alpinelinux.org/alpine/ca-certi
 ARG SYSTEMD_VERSION=257.8
 ENV SYSTEMD_VERSION=${SYSTEMD_VERSION}
 
+
 RUN cd /sources/downloads && wget https://github.com/systemd/systemd/archive/refs/tags/v${SYSTEMD_VERSION}.tar.gz -O systemd-${SYSTEMD_VERSION}.tar.gz
+
+## systemd patches
+RUN apk add git patch
+
+ARG OE_CORE_VERSION=bed605e7cd095f210e24f1e07dab6f814d0bbb59
+ENV OE_CORE_VERSION=${OE_CORE_VERSION}
+
+# Extract systemd and apply patches
+RUN cd /sources/downloads && tar -xvf systemd-${SYSTEMD_VERSION}.tar.gz && \
+    mv systemd-${SYSTEMD_VERSION} systemd
+RUN cd /sources/downloads && git clone https://github.com/openembedded/openembedded-core && \
+    cd openembedded-core && \
+    git checkout ${OE_CORE_VERSION}
+COPY patches/apply_all.sh /apply_all.sh
+#COPY patches/systemd/ /sources/patches/systemd
+RUN chmod +x /apply_all.sh
+RUN /apply_all.sh /sources/downloads/openembedded-core/meta/recipes-core/systemd/systemd/ /sources/downloads/systemd
+#RUN /apply_all.sh /sources/patches/systemd /sources/downloads/systemd
 
 ARG LIBCAP_VERSION=2.76
 ENV LIBCAP_VERSION=${LIBCAP_VERSION}
@@ -137,6 +156,11 @@ COPY patches/apply_all.sh /apply_all.sh
 RUN chmod +x /apply_all.sh
 RUN /apply_all.sh /sources/downloads/openembedded-core/meta/recipes-core/systemd/systemd/ /sources/downloads/systemd
 #RUN /apply_all.sh /sources/patches/systemd /sources/downloads/systemd
+
+## kernel
+ARG KERNEL_VERSION=6.16.7
+ENV KERNEL_VERSION=${KERNEL_VERSION}
+RUN cd /sources/downloads && wget https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${KERNEL_VERSION}.tar.xz
 
 FROM stage0 AS skeleton
 
@@ -1038,6 +1062,57 @@ RUN rm -fv /bin/sh && ln -s /bin/bash /bin/sh && mkdir -p /sources && cd /source
       -D docdir=/usr/share/doc/systemd-${SYSTEMD_VERSION} 2>&1 && ninja 2>&1 && \
      DESTDIR=/systemd ninja install && ninja install
 
+## kernel
+FROM rsync as kernel
+
+ARG TARGETARCH
+COPY --from=bash /bash /bash
+RUN rsync -aHAX --keep-dirlinks  /bash/. /
+
+
+COPY --from=readline /readline /readline
+RUN rsync -aHAX --keep-dirlinks  /readline/. /
+
+
+ARG KERNEL_VERSION=6.16.7
+ENV KERNEL_VERSION=${KERNEL_VERSION}
+
+COPY --from=sources-downloader /sources/downloads/linux-${KERNEL_VERSION}.tar.xz /sources/
+RUN rm -fv /bin/sh && ln -s /bin/bash /bin/sh
+RUN mkdir -p /sources/kernel-configs
+
+COPY ./files/kernel/* /sources/kernel-configs/
+
+RUN mkdir -p /sources && cd /sources && tar -xf linux-${KERNEL_VERSION}.tar.xz && mv linux-${KERNEL_VERSION} kernel
+
+RUN <<EOT bash
+if [[ "${TARGETARCH}" == "amd64" ]]; then
+    cp -rfv /sources/kernel-configs/ukairos-x86_64.config .config
+else 
+    cp -rfv /sources/kernel-configs/ukairos-${TARGETARCH}.config .config
+fi
+
+cd /sources/kernel && make ARCH=x86_64  olddefconfig && make ARCH=x86_64  KBUILD_BUILD_VERSION="$KERNEL_VERSION-${VENDOR}"
+EOT
+
+#RUN cd /sources/kernel && make olddefconfig && make KBUILD_BUILD_VERSION="$KERNEL_VERSION-${VENDOR}"
+
+RUN <<EOT bash
+mkdir -p /kernel/boot
+KARCH=amd64
+if [[ "${TARGETARCH}" == "amd64" ]]; then
+KARCH=x86_64
+fi
+cd /sources/kernel 
+if [[ -L "arch/${KARCH}/boot/bzImage" ]]; then
+   cp -rfv $(readlink -f "arch/${KARCH}/boot/bzImage") /kernel/boot/"kernel-${KERNEL_PREFIX}-${KARCH}-${PACKAGE_VERSION}-${VENDOR}"
+else
+   cp -rfv arch/${KARCH}/boot/bzImage /kernel/boot/"kernel-${KERNEL_PREFIX}-${KARCH}-${PACKAGE_VERSION}-${VENDOR}"
+fi
+
+EOT
+
+
 ########################################################
 #
 # Stage 2 - Building the final image
@@ -1123,6 +1198,9 @@ RUN rsync -aHAX --keep-dirlinks  /util-linux/. /skeleton/
 ## systemd
 COPY --from=systemd /systemd /systemd
 RUN rsync -aHAX --keep-dirlinks  /systemd/. /skeleton/
+
+COPY --from=kernel /kernel /kernel
+RUN rsync -aHAX --keep-dirlinks  /kernel/. /skeleton/
 
 ## Cleanup
 
