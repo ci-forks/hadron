@@ -111,6 +111,15 @@ ENV SQLITE3_VERSION=${SQLITE3_VERSION}
 
 RUN cd /sources/downloads && wget https://www.sqlite.org/2025/sqlite-autoconf-${SQLITE3_VERSION}.tar.gz -O sqlite-autoconf-${SQLITE3_VERSION}.tar.gz
 
+ARG OPENSSL_VERSION=3.5.2
+ENV OPENSSL_VERSION=${OPENSSL_VERSION}
+RUN cd /sources/downloads && wget https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz 
+
+ARG PKGCONFIG_VERSION=1.8.1
+ENV PKGCONFIG_VERSION=${PKGCONFIG_VERSION}
+RUN cd /sources/downloads && wget https://distfiles.dereferenced.org/pkgconf/pkgconf-${PKGCONFIG_VERSION}.tar.xz
+
+
 ## systemd patches
 RUN apk add git patch
 
@@ -124,16 +133,10 @@ RUN cd /sources/downloads && git clone https://github.com/openembedded/openembed
     cd openembedded-core && \
     git checkout ${OE_CORE_VERSION}
 COPY patches/apply_all.sh /apply_all.sh
+#COPY patches/systemd/ /sources/patches/systemd
 RUN chmod +x /apply_all.sh
 RUN /apply_all.sh /sources/downloads/openembedded-core/meta/recipes-core/systemd/systemd/ /sources/downloads/systemd
-
-ARG OPENSSL_VERSION=3.5.2
-ENV OPENSSL_VERSION=${OPENSSL_VERSION}
-RUN cd /sources/downloads && wget https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz 
-
-ARG PKGCONFIG_VERSION=1.8.1
-ENV PKGCONFIG_VERSION=${PKGCONFIG_VERSION}
-RUN cd /sources/downloads && wget https://distfiles.dereferenced.org/pkgconf/pkgconf-${PKGCONFIG_VERSION}.tar.xz
+#RUN /apply_all.sh /sources/patches/systemd /sources/downloads/systemd
 
 FROM stage0 AS skeleton
 
@@ -1005,7 +1008,7 @@ COPY --from=pkgconfig /pkgconfig /pkgconfig
 RUN rsync -aHAX --keep-dirlinks  /pkgconfig/. /
 
 COPY --from=sources-downloader /sources/downloads/systemd /sources/downloads/systemd
-
+ENV CFLAGS="-D __UAPI_DEF_ETHHDR=0 -D _LARGEFILE64_SOURCE"
 RUN rm -fv /bin/sh && ln -s /bin/bash /bin/sh && mkdir -p /sources && cd /sources/downloads/systemd && mkdir -p /systemd && python3 -m pip install meson ninja jinja2 && mkdir -p build && cd       build && /usr/bin/meson setup .. \
       --prefix=/usr           \
       --buildtype=release     \
