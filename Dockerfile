@@ -1015,8 +1015,16 @@ RUN rm -fv /bin/sh && ln -s /bin/bash /bin/sh && mkdir -p /sources && cd /source
       -D ldconfig=false       \
       -D sysusers=false       \
       -D rpmmacrosdir=no      \
-      -D homed=disabled       \
+      -D gshadow=false        \
+      -D idn=false            \
+      -D localed=false        \
+      -D nss-myhostname=false  \
+      -D nss-systemd=false     \
       -D userdb=false         \
+      -D nss-mymachines=disabled \
+      -D nss-resolve=disabled   \
+      -D utmp=false           \
+      -D homed=disabled       \
       -D man=disabled         \
       -D mode=release         \
       -D pamconfdir=no        \
