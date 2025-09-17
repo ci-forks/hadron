@@ -123,7 +123,7 @@ RUN cd /sources/downloads && wget https://distfiles.dereferenced.org/pkgconf/pkg
 ## systemd patches
 RUN apk add git patch
 
-ARG OE_CORE_VERSION=master
+ARG OE_CORE_VERSION=bed605e7cd095f210e24f1e07dab6f814d0bbb59
 ENV OE_CORE_VERSION=${OE_CORE_VERSION}
 
 # Extract systemd and apply patches
