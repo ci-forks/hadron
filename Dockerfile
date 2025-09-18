@@ -162,6 +162,25 @@ ARG KERNEL_VERSION=6.16.7
 ENV KERNEL_VERSION=${KERNEL_VERSION}
 RUN cd /sources/downloads && wget https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${KERNEL_VERSION}.tar.xz
 
+## flex
+
+ARG FLEX_VERSION=2.6.4
+ENV FLEX_VERSION=${FLEX_VERSION}
+RUN cd /sources/downloads && wget https://github.com/westes/flex/releases/download/v${FLEX_VERSION}/flex-${FLEX_VERSION}.tar.gz
+
+## bison
+
+ARG BISON_VERSION=3.8.2
+ENV BISON_VERSION=${BISON_VERSION}
+RUN cd /sources/downloads && wget https://ftp.gnu.org/gnu/bison/bison-${BISON_VERSION}.tar.xz
+
+## elfutils
+
+ARG ELFUTILS_VERSION=0.193
+ENV ELFUTILS_VERSION=${ELFUTILS_VERSION}
+RUN cd /sources/downloads && wget https://sourceware.org/elfutils/ftp/${ELFUTILS_VERSION}/elfutils-${ELFUTILS_VERSION}.tar.bz2
+
+
 FROM stage0 AS skeleton
 
 COPY ./setup_rootfs.sh ./setup_rootfs.sh
@@ -1062,6 +1081,58 @@ RUN rm -fv /bin/sh && ln -s /bin/bash /bin/sh && mkdir -p /sources && cd /source
       -D docdir=/usr/share/doc/systemd-${SYSTEMD_VERSION} 2>&1 && ninja 2>&1 && \
      DESTDIR=/systemd ninja install && ninja install
 
+## flex
+FROM m4 as flex
+ARG FLEX_VERSION=2.6.4
+ENV FLEX_VERSION=${FLEX_VERSION}
+
+COPY --from=sources-downloader /sources/downloads/flex-${FLEX_VERSION}.tar.gz /sources/
+
+RUN mkdir -p /sources && cd /sources && tar -xvf flex-${FLEX_VERSION}.tar.gz && mv flex-${FLEX_VERSION} flex && cd flex && mkdir -p /flex && ./configure ${COMMON_ARGS} --docdir=/usr/share/doc/flex-${FLEX_VERSION} --disable-dependency-tracking --infodir=/usr/share/info --mandir=/usr/share/man --prefix=/usr --disable-static --enable-shared ac_cv_func_malloc_0_nonnull=yes ac_cv_func_realloc_0_nonnull=yes && \
+    make DESTDIR=/flex install && make install && ln -s flex /flex/usr/bin/lex
+
+## bison
+FROM rsync as bison
+
+ARG BISON_VERSION=3.8.2
+ENV BISON_VERSION=${BISON_VERSION}
+
+COPY --from=flex /flex /flex
+RUN rsync -aHAX --keep-dirlinks  /flex/. /
+
+COPY --from=m4 /m4 /m4
+RUN rsync -aHAX --keep-dirlinks  /m4/. /
+
+COPY --from=perl /perl /perl
+RUN rsync -aHAX --keep-dirlinks  /perl/. /
+
+COPY --from=sources-downloader /sources/downloads/bison-${BISON_VERSION}.tar.xz /sources/
+RUN mkdir -p /sources && cd /sources && tar -xvf bison-${BISON_VERSION}.tar.xz && mv bison-${BISON_VERSION} bison && cd bison && mkdir -p /bison && ./configure ${COMMON_ARGS} --disable-dependency-tracking --infodir=/usr/share/info --mandir=/usr/share/man --prefix=/usr --disable-static --enable-shared && \
+    make DESTDIR=/bison install && make install
+
+## elfutils
+
+FROM rsync as elfutils
+
+ARG ELFUTILS_VERSION=0.193
+ENV ELFUTILS_VERSION=${ELFUTILS_VERSION}
+
+COPY --from=pkgconfig /pkgconfig /pkgconfig
+RUN rsync -aHAX --keep-dirlinks  /pkgconfig/. /
+
+COPY --from=sources-downloader /sources/downloads/elfutils-${ELFUTILS_VERSION}.tar.bz2 /sources/
+RUN mkdir -p /sources && cd /sources && tar -xvf elfutils-${ELFUTILS_VERSION}.tar.bz2 && mv elfutils-${ELFUTILS_VERSION} elfutils && cd elfutils && mkdir -p /elfutils && ./configure ${COMMON_ARGS} --disable-dependency-tracking --infodir=/usr/share/info --mandir=/usr/share/man --prefix=/usr --disable-static --enable-shared \
+--sysconfdir=/etc \
+--localstatedir=/var \
+--disable-werror \
+--program-prefix=eu- \
+--enable-deterministic-archives \
+--disable-nls \
+--disable-libdebuginfod \
+--disable-debuginfod \
+--with-zstd && \
+    make DESTDIR=/elfutils install && make install
+
 ## kernel
 FROM rsync as kernel
 
@@ -1069,10 +1140,20 @@ ARG TARGETARCH
 COPY --from=bash /bash /bash
 RUN rsync -aHAX --keep-dirlinks  /bash/. /
 
-
 COPY --from=readline /readline /readline
 RUN rsync -aHAX --keep-dirlinks  /readline/. /
 
+COPY --from=flex /flex /flex
+RUN rsync -aHAX --keep-dirlinks  /flex/. /
+
+COPY --from=m4 /m4 /m4
+RUN rsync -aHAX --keep-dirlinks  /m4/. /
+
+COPY --from=bison /bison /bison
+RUN rsync -aHAX --keep-dirlinks  /bison/. /
+
+COPY --from=elfutils /elfutils /elfutils
+RUN rsync -aHAX --keep-dirlinks  /elfutils/. /
 
 ARG KERNEL_VERSION=6.16.7
 ENV KERNEL_VERSION=${KERNEL_VERSION}
