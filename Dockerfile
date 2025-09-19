@@ -138,25 +138,6 @@ ARG PKGCONFIG_VERSION=1.8.1
 ENV PKGCONFIG_VERSION=${PKGCONFIG_VERSION}
 RUN cd /sources/downloads && wget https://distfiles.dereferenced.org/pkgconf/pkgconf-${PKGCONFIG_VERSION}.tar.xz
 
-
-## systemd patches
-RUN apk add git patch
-
-ARG OE_CORE_VERSION=30140cb9354fa535f68fab58e73b76f0cca342e4
-ENV OE_CORE_VERSION=${OE_CORE_VERSION}
-
-# Extract systemd and apply patches
-RUN cd /sources/downloads && tar -xvf systemd-${SYSTEMD_VERSION}.tar.gz && \
-    mv systemd-${SYSTEMD_VERSION} systemd
-RUN cd /sources/downloads && git clone https://github.com/openembedded/openembedded-core && \
-    cd openembedded-core && \
-    git checkout ${OE_CORE_VERSION}
-COPY patches/apply_all.sh /apply_all.sh
-#COPY patches/systemd/ /sources/patches/systemd
-RUN chmod +x /apply_all.sh
-RUN /apply_all.sh /sources/downloads/openembedded-core/meta/recipes-core/systemd/systemd/ /sources/downloads/systemd
-#RUN /apply_all.sh /sources/patches/systemd /sources/downloads/systemd
-
 ## kernel
 ARG KERNEL_VERSION=6.16.7
 ENV KERNEL_VERSION=${KERNEL_VERSION}
@@ -180,6 +161,11 @@ ARG ELFUTILS_VERSION=0.193
 ENV ELFUTILS_VERSION=${ELFUTILS_VERSION}
 RUN cd /sources/downloads && wget https://sourceware.org/elfutils/ftp/${ELFUTILS_VERSION}/elfutils-${ELFUTILS_VERSION}.tar.bz2
 
+## argp-standalone
+
+ARG ARGP_STANDALONE_VERSION=1.3
+ENV ARGP_STANDALONE_VERSION=${ARGP_STANDALONE_VERSION}
+RUN cd /sources/downloads && wget http://www.lysator.liu.se/~nisse/misc/argp-standalone-${ARGP_STANDALONE_VERSION}.tar.gz
 
 FROM stage0 AS skeleton
 
@@ -1110,6 +1096,18 @@ COPY --from=sources-downloader /sources/downloads/bison-${BISON_VERSION}.tar.xz 
 RUN mkdir -p /sources && cd /sources && tar -xvf bison-${BISON_VERSION}.tar.xz && mv bison-${BISON_VERSION} bison && cd bison && mkdir -p /bison && ./configure ${COMMON_ARGS} --disable-dependency-tracking --infodir=/usr/share/info --mandir=/usr/share/man --prefix=/usr --disable-static --enable-shared && \
     make DESTDIR=/bison install && make install
 
+## argp-standalone
+FROM rsync as argp-standalone
+
+ARG ARGP_STANDALONE_VERSION=1.3
+ENV ARGP_STANDALONE_VERSION=${ARGP_STANDALONE_VERSION}
+
+ENV CFLAGS="$CFLAGS -fPIC"
+
+COPY --from=sources-downloader /sources/downloads/argp-standalone-${ARGP_STANDALONE_VERSION}.tar.gz /sources/
+RUN mkdir -p /sources && cd /sources && tar -xvf argp-standalone-${ARGP_STANDALONE_VERSION}.tar.gz && mv argp-standalone-${ARGP_STANDALONE_VERSION} argp-standalone && cd argp-standalone && mkdir -p /argp-standalone && autoreconf -vif && ./configure ${COMMON_ARGS} --disable-dependency-tracking --mandir=/usr/share/man --prefix=/usr --disable-static --enable-shared -sysconfdir=/etc --localstatedir=/var && \
+    make DESTDIR=/argp-standalone install && make install
+
 ## elfutils
 
 FROM rsync as elfutils
@@ -1119,6 +1117,9 @@ ENV ELFUTILS_VERSION=${ELFUTILS_VERSION}
 
 COPY --from=pkgconfig /pkgconfig /pkgconfig
 RUN rsync -aHAX --keep-dirlinks  /pkgconfig/. /
+
+COPY --from=argp-standalone /argp-standalone /argp-standalone
+RUN rsync -aHAX --keep-dirlinks  /argp-standalone/. /
 
 COPY --from=sources-downloader /sources/downloads/elfutils-${ELFUTILS_VERSION}.tar.bz2 /sources/
 RUN mkdir -p /sources && cd /sources && tar -xvf elfutils-${ELFUTILS_VERSION}.tar.bz2 && mv elfutils-${ELFUTILS_VERSION} elfutils && cd elfutils && mkdir -p /elfutils && ./configure ${COMMON_ARGS} --disable-dependency-tracking --infodir=/usr/share/info --mandir=/usr/share/man --prefix=/usr --disable-static --enable-shared \
