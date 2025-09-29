@@ -167,6 +167,36 @@ ARG ARGP_STANDALONE_VERSION=1.3
 ENV ARGP_STANDALONE_VERSION=${ARGP_STANDALONE_VERSION}
 RUN cd /sources/downloads && wget http://www.lysator.liu.se/~nisse/misc/argp-standalone-${ARGP_STANDALONE_VERSION}.tar.gz
 
+## autoconf
+
+ARG AUTOCONF_VERSION=2.71
+ENV AUTOCONF_VERSION=${AUTOCONF_VERSION}
+RUN cd /sources/downloads && wget https://ftpmirror.gnu.org/autoconf/autoconf-${AUTOCONF_VERSION}.tar.xz
+
+## automake
+
+ARG AUTOMAKE_VERSION=1.18.1
+ENV AUTOMAKE_VERSION=${AUTOMAKE_VERSION}
+RUN cd /sources/downloads && wget https://ftpmirror.gnu.org/automake/automake-${AUTOMAKE_VERSION}.tar.xz
+
+## fts
+
+ARG FTS_VERSION=1.2.7
+ENV FTS_VERSION=${FTS_VERSION}
+RUN cd /sources/downloads && wget https://github.com/pullmoll/musl-fts/archive/v${FTS_VERSION}.tar.gz -O musl-fts-${FTS_VERSION}.tar.gz
+
+## libtool
+
+ARG LIBTOOL_VERSION=2.5.4
+ENV LIBTOOL_VERSION=${LIBTOOL_VERSION}
+RUN cd /sources/downloads && wget https://ftpmirror.gnu.org/libtool/libtool-${LIBTOOL_VERSION}.tar.xz
+
+## musl-obstack
+ARG MUSL_OBSTACK_VERSION=1.2.3
+ENV MUSL_OBSTACK_VERSION=${MUSL_OBSTACK_VERSION}
+RUN cd /sources/downloads && wget https://github.com/void-linux/musl-obstack/archive/v${MUSL_OBSTACK_VERSION}.tar.gz -O musl-obstack-${MUSL_OBSTACK_VERSION}.tar.gz
+
+
 FROM stage0 AS skeleton
 
 COPY ./setup_rootfs.sh ./setup_rootfs.sh
@@ -431,27 +461,8 @@ RUN mkdir -p /sources && cd /sources && tar -xvf pkgconf-${PKGCONFIG_VERSION}.ta
     make && \
     make DESTDIR=/pkgconfig install && make install && ln -s pkgconf /pkgconfig/usr/bin/pkg-config
 
-## autoconf
-FROM stage1 AS autoconf
 
-ARG AUTOCONF_VERSION=2.71
-ENV AUTOCONF_VERSION=${AUTOCONF_VERSION}
 
-RUN mkdir /sources && cd /sources && wget http://ftp.gnu.org/gnu/autoconf/autoconf-${AUTOCONF_VERSION}.tar.xz && \
-    tar -xvf autoconf-${AUTOCONF_VERSION}.tar.xz && mv autoconf-${AUTOCONF_VERSION} autoconf && \
-    cd autoconf && mkdir -p /autoconf && ./configure ${COMMON_ARGS} && make DESTDIR=/autoconf && \
-    make DESTDIR=/autoconf install && make install
-
-## automake
-FROM stage1 AS automake
-
-ARG AUTOMAKE_VERSION=1.16.5
-ENV AUTOMAKE_VERSION=${AUTOMAKE_VERSION}
-
-RUN mkdir /sources && cd /sources && wget http://ftp.gnu.org/gnu/automake/automake-${AUTOMAKE_VERSION}.tar.xz && \
-    tar -xvf automake-${AUTOMAKE_VERSION}.tar.xz && mv automake-${AUTOMAKE_VERSION} automake && \
-    cd automake && mkdir -p /automake && ./configure ${COMMON_ARGS} && make DESTDIR=/automake && \
-    make DESTDIR=/automake install && make install
 
 ## xxhash
 FROM stage1 AS xxhash
@@ -1096,6 +1107,51 @@ COPY --from=sources-downloader /sources/downloads/bison-${BISON_VERSION}.tar.xz 
 RUN mkdir -p /sources && cd /sources && tar -xvf bison-${BISON_VERSION}.tar.xz && mv bison-${BISON_VERSION} bison && cd bison && mkdir -p /bison && ./configure ${COMMON_ARGS} --disable-dependency-tracking --infodir=/usr/share/info --mandir=/usr/share/man --prefix=/usr --disable-static --enable-shared && \
     make DESTDIR=/bison install && make install
 
+
+## autoconf
+FROM rsync AS autoconf
+
+ARG AUTOCONF_VERSION=2.71
+ENV AUTOCONF_VERSION=${AUTOCONF_VERSION}
+
+
+COPY --from=m4 /m4 /m4
+RUN rsync -aHAX --keep-dirlinks  /m4/. /
+
+
+COPY --from=perl /perl /perl
+RUN rsync -aHAX --keep-dirlinks  /perl/. /
+
+COPY --from=sources-downloader /sources/downloads/autoconf-${AUTOCONF_VERSION}.tar.xz /sources/
+
+RUN mkdir -p /sources && cd /sources && tar -xvf autoconf-${AUTOCONF_VERSION}.tar.xz && mv autoconf-${AUTOCONF_VERSION} autoconf && \
+    cd autoconf && mkdir -p /autoconf && ./configure ${COMMON_ARGS} --prefix=/usr && make DESTDIR=/autoconf && \
+    make DESTDIR=/autoconf install && make install
+
+
+## automake
+FROM rsync AS automake
+
+ARG AUTOMAKE_VERSION=1.18.1
+ENV AUTOMAKE_VERSION=${AUTOMAKE_VERSION}
+
+
+COPY --from=perl /perl /perl
+RUN rsync -aHAX --keep-dirlinks  /perl/. /
+
+COPY --from=autoconf /autoconf /autoconf
+RUN rsync -aHAX --keep-dirlinks  /autoconf/. /
+
+COPY --from=m4 /m4 /m4
+RUN rsync -aHAX --keep-dirlinks  /m4/. /
+
+COPY --from=sources-downloader /sources/downloads/automake-${AUTOMAKE_VERSION}.tar.xz /sources/
+
+RUN mkdir -p /sources && cd /sources && tar -xvf automake-${AUTOMAKE_VERSION}.tar.xz && mv automake-${AUTOMAKE_VERSION} automake && \
+    cd automake && mkdir -p /automake && ./configure ${COMMON_ARGS} --prefix=/usr && make DESTDIR=/automake && \
+    make DESTDIR=/automake install && make install
+
+
 ## argp-standalone
 FROM rsync as argp-standalone
 
@@ -1104,9 +1160,69 @@ ENV ARGP_STANDALONE_VERSION=${ARGP_STANDALONE_VERSION}
 
 ENV CFLAGS="$CFLAGS -fPIC"
 
+COPY --from=autoconf /autoconf /autoconf
+RUN rsync -aHAX --keep-dirlinks  /autoconf/. /
+
+COPY --from=perl /perl /perl
+RUN rsync -aHAX --keep-dirlinks  /perl/. /
+
+COPY --from=automake /automake /automake
+RUN rsync -aHAX --keep-dirlinks  /automake/. /
+
+COPY --from=m4 /m4 /m4
+RUN rsync -aHAX --keep-dirlinks  /m4/. /
+
 COPY --from=sources-downloader /sources/downloads/argp-standalone-${ARGP_STANDALONE_VERSION}.tar.gz /sources/
 RUN mkdir -p /sources && cd /sources && tar -xvf argp-standalone-${ARGP_STANDALONE_VERSION}.tar.gz && mv argp-standalone-${ARGP_STANDALONE_VERSION} argp-standalone && cd argp-standalone && mkdir -p /argp-standalone && autoreconf -vif && ./configure ${COMMON_ARGS} --disable-dependency-tracking --mandir=/usr/share/man --prefix=/usr --disable-static --enable-shared -sysconfdir=/etc --localstatedir=/var && \
-    make DESTDIR=/argp-standalone install && make install
+    make DESTDIR=/argp-standalone install && make install && install -D -m644 argp.h /argp-standalone/usr/include/argp.h && install -D -m755 libargp.a /argp-standalone/usr/lib/libargp.a
+
+## libtool
+FROM rsync as libtool
+
+ARG LIBTOOL_VERSION=2.5.4
+ENV LIBTOOL_VERSION=${LIBTOOL_VERSION}
+
+COPY --from=m4 /m4 /m4
+RUN rsync -aHAX --keep-dirlinks  /m4/. /
+
+COPY --from=sources-downloader /sources/downloads/libtool-${LIBTOOL_VERSION}.tar.xz /sources/
+
+RUN mkdir -p /sources && cd /sources && tar -xvf libtool-${LIBTOOL_VERSION}.tar.xz && mv libtool-${LIBTOOL_VERSION} libtool && cd libtool && mkdir -p /libtool && sed -i \
+-e "s|test-funclib-quote.sh||" \
+-e "s|test-option-parser.sh||" \
+gnulib-tests/Makefile.in && ./configure ${COMMON_ARGS} --disable-dependency-tracking --prefix=/usr --disable-static --enable-shared && \
+    make DESTDIR=/libtool install && make install
+
+## fts
+
+FROM rsync as fts
+ARG FTS_VERSION=1.2.7
+ENV FTS_VERSION=${FTS_VERSION}
+
+ENV CFLAGS="$CFLAGS -fPIC"
+
+COPY --from=autoconf /autoconf /autoconf
+RUN rsync -aHAX --keep-dirlinks  /autoconf/. /
+
+COPY --from=automake /automake /automake
+RUN rsync -aHAX --keep-dirlinks  /automake/. /
+
+COPY --from=m4 /m4 /m4
+RUN rsync -aHAX --keep-dirlinks  /m4/. /
+
+COPY --from=perl /perl /perl
+RUN rsync -aHAX --keep-dirlinks  /perl/. /
+
+COPY --from=libtool /libtool /libtool
+RUN rsync -aHAX --keep-dirlinks  /libtool/. /
+
+COPY --from=pkgconfig /pkgconfig /pkgconfig
+RUN rsync -aHAX --keep-dirlinks  /pkgconfig/. /
+
+COPY --from=sources-downloader /sources/downloads/musl-fts-${FTS_VERSION}.tar.gz /sources/
+
+RUN mkdir -p /sources && cd /sources && tar -xvf musl-fts-${FTS_VERSION}.tar.gz && mv musl-fts-${FTS_VERSION} fts && cd fts && mkdir -p /fts && ./bootstrap.sh && ./configure ${COMMON_ARGS} --disable-dependency-tracking --prefix=/usr --disable-static --enable-shared --localstatedir=/var --mandir=/usr/share/man  --sysconfdir=/etc  && \
+    make DESTDIR=/fts install && make install &&  cp musl-fts.pc /fts/usr/lib/pkgconfig/libfts.pc
 
 ## elfutils
 
@@ -1120,6 +1236,16 @@ RUN rsync -aHAX --keep-dirlinks  /pkgconfig/. /
 
 COPY --from=argp-standalone /argp-standalone /argp-standalone
 RUN rsync -aHAX --keep-dirlinks  /argp-standalone/. /
+
+COPY --from=fts /fts /fts
+RUN rsync -aHAX --keep-dirlinks  /fts/. /
+
+COPY --from=zstd /zstd /zstd
+RUN rsync -aHAX --keep-dirlinks  /zstd/. /
+
+COPY --from=zlib /zlib /zlib
+RUN rsync -aHAX --keep-dirlinks  /zlib/. /
+
 
 COPY --from=sources-downloader /sources/downloads/elfutils-${ELFUTILS_VERSION}.tar.bz2 /sources/
 RUN mkdir -p /sources && cd /sources && tar -xvf elfutils-${ELFUTILS_VERSION}.tar.bz2 && mv elfutils-${ELFUTILS_VERSION} elfutils && cd elfutils && mkdir -p /elfutils && ./configure ${COMMON_ARGS} --disable-dependency-tracking --infodir=/usr/share/info --mandir=/usr/share/man --prefix=/usr --disable-static --enable-shared \
