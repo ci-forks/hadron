@@ -1421,6 +1421,9 @@ fi
 cd /sources/kernel && make ARCH=x86_64  olddefconfig && make ARCH=x86_64  KBUILD_BUILD_VERSION="$KERNEL_VERSION-${VENDOR}"
 EOT
 
+## TODO: steps below are basically untested
+## TODO: we miss also compiling modules
+
 RUN <<EOT bash
 mkdir -p /kernel/boot
 KARCH=amd64
@@ -1732,6 +1735,7 @@ RUN busybox --install
 RUN rm /bin/sh && ln -s /bin/bash /bin/sh
 RUN systemctl preset-all
 
+## TODO: The images probably are not shipping the files there
 COPY --from=kernel /kernel/boot/vmlinuz /boot/vmlinuz
 COPY --from=kernel /kernel/lib/modules/ /lib/modules/
 
