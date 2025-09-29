@@ -84,6 +84,24 @@ ENV SYSTEMD_VERSION=${SYSTEMD_VERSION}
 
 RUN cd /sources/downloads && wget https://github.com/systemd/systemd/archive/refs/tags/v${SYSTEMD_VERSION}.tar.gz -O systemd-${SYSTEMD_VERSION}.tar.gz
 
+## systemd patches
+RUN apk add git patch
+
+ARG OE_CORE_VERSION=30140cb9354fa535f68fab58e73b76f0cca342e4
+ENV OE_CORE_VERSION=${OE_CORE_VERSION}
+
+# Extract systemd and apply patches
+RUN cd /sources/downloads && tar -xvf systemd-${SYSTEMD_VERSION}.tar.gz && \
+    mv systemd-${SYSTEMD_VERSION} systemd
+RUN cd /sources/downloads && git clone https://github.com/openembedded/openembedded-core && \
+    cd openembedded-core && \
+    git checkout ${OE_CORE_VERSION}
+COPY patches/apply_all.sh /apply_all.sh
+#COPY patches/systemd/ /sources/patches/systemd
+RUN chmod +x /apply_all.sh
+RUN /apply_all.sh /sources/downloads/openembedded-core/meta/recipes-core/systemd/systemd/ /sources/downloads/systemd
+#RUN /apply_all.sh /sources/patches/systemd /sources/downloads/systemd
+
 ARG LIBCAP_VERSION=2.76
 ENV LIBCAP_VERSION=${LIBCAP_VERSION}
 
@@ -111,25 +129,6 @@ RUN cd /sources/downloads && wget https://www.openssl.org/source/openssl-${OPENS
 ARG PKGCONFIG_VERSION=1.8.1
 ENV PKGCONFIG_VERSION=${PKGCONFIG_VERSION}
 RUN cd /sources/downloads && wget https://distfiles.dereferenced.org/pkgconf/pkgconf-${PKGCONFIG_VERSION}.tar.xz
-
-
-## systemd patches
-RUN apk add git patch
-
-ARG OE_CORE_VERSION=30140cb9354fa535f68fab58e73b76f0cca342e4
-ENV OE_CORE_VERSION=${OE_CORE_VERSION}
-
-# Extract systemd and apply patches
-RUN cd /sources/downloads && tar -xf systemd-${SYSTEMD_VERSION}.tar.gz && \
-    mv systemd-${SYSTEMD_VERSION} systemd
-RUN cd /sources/downloads && git clone https://github.com/openembedded/openembedded-core && \
-    cd openembedded-core && \
-    git checkout ${OE_CORE_VERSION}
-COPY patches/apply_all.sh /apply_all.sh
-#COPY patches/systemd/ /sources/patches/systemd
-RUN chmod +x /apply_all.sh
-RUN /apply_all.sh /sources/downloads/openembedded-core/meta/recipes-core/systemd/systemd/ /sources/downloads/systemd
-#RUN /apply_all.sh /sources/patches/systemd /sources/downloads/systemd
 
 ARG DBUS_VERSION=1.16.2
 RUN cd /sources/downloads && wget https://dbus.freedesktop.org/releases/dbus/dbus-${DBUS_VERSION}.tar.xz && mv dbus-${DBUS_VERSION}.tar.xz dbus.tar.xz
@@ -159,6 +158,67 @@ RUN cd /sources/downloads && wget https://www.netfilter.org/projects/libmnl/file
 
 ARG LIBNFTNL_VERSION=1.3.0
 RUN cd /sources/downloads && wget https://www.netfilter.org/projects/libnftnl/files/libnftnl-${LIBNFTNL_VERSION}.tar.xz && mv libnftnl-${LIBNFTNL_VERSION}.tar.xz libnftnl.tar.xz
+
+## kernel
+ARG KERNEL_VERSION=6.16.7
+ENV KERNEL_VERSION=${KERNEL_VERSION}
+RUN cd /sources/downloads && wget https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${KERNEL_VERSION}.tar.xz
+
+## flex
+
+ARG FLEX_VERSION=2.6.4
+ENV FLEX_VERSION=${FLEX_VERSION}
+RUN cd /sources/downloads && wget https://github.com/westes/flex/releases/download/v${FLEX_VERSION}/flex-${FLEX_VERSION}.tar.gz
+
+## bison
+
+ARG BISON_VERSION=3.8.2
+ENV BISON_VERSION=${BISON_VERSION}
+RUN cd /sources/downloads && wget https://ftp.gnu.org/gnu/bison/bison-${BISON_VERSION}.tar.xz
+
+
+## argp-standalone
+
+ARG ARGP_STANDALONE_VERSION=1.3
+ENV ARGP_STANDALONE_VERSION=${ARGP_STANDALONE_VERSION}
+RUN cd /sources/downloads && wget http://www.lysator.liu.se/~nisse/misc/argp-standalone-${ARGP_STANDALONE_VERSION}.tar.gz
+
+## autoconf
+
+ARG AUTOCONF_VERSION=2.71
+ENV AUTOCONF_VERSION=${AUTOCONF_VERSION}
+RUN cd /sources/downloads && wget https://ftpmirror.gnu.org/autoconf/autoconf-${AUTOCONF_VERSION}.tar.xz
+
+## automake
+
+ARG AUTOMAKE_VERSION=1.18.1
+ENV AUTOMAKE_VERSION=${AUTOMAKE_VERSION}
+RUN cd /sources/downloads && wget https://ftpmirror.gnu.org/automake/automake-${AUTOMAKE_VERSION}.tar.xz
+
+## fts
+
+ARG FTS_VERSION=1.2.7
+ENV FTS_VERSION=${FTS_VERSION}
+RUN cd /sources/downloads && wget https://github.com/pullmoll/musl-fts/archive/v${FTS_VERSION}.tar.gz -O musl-fts-${FTS_VERSION}.tar.gz
+
+## libtool
+
+ARG LIBTOOL_VERSION=2.5.4
+ENV LIBTOOL_VERSION=${LIBTOOL_VERSION}
+RUN cd /sources/downloads && wget https://ftpmirror.gnu.org/libtool/libtool-${LIBTOOL_VERSION}.tar.xz
+
+## musl-obstack
+ARG MUSL_OBSTACK_VERSION=1.2.3
+ENV MUSL_OBSTACK_VERSION=${MUSL_OBSTACK_VERSION}
+RUN cd /sources/downloads && wget https://github.com/void-linux/musl-obstack/archive/v${MUSL_OBSTACK_VERSION}.tar.gz -O musl-obstack-${MUSL_OBSTACK_VERSION}.tar.gz
+
+## elfutils
+
+ARG ELFUTILS_VERSION=0.193
+ENV ELFUTILS_VERSION=${ELFUTILS_VERSION}
+RUN cd /sources/downloads && wget https://sourceware.org/elfutils/ftp/${ELFUTILS_VERSION}/elfutils-${ELFUTILS_VERSION}.tar.bz2
+
+RUN cd /sources/downloads && mkdir -p elfutils-patches && wget https://gitlab.alpinelinux.org/alpine/aports/-/raw/master/main/elfutils/musl-macros.patch -O elfutils-patches/musl-macros.patch
 
 FROM stage0 AS skeleton
 
@@ -420,28 +480,6 @@ RUN mkdir -p /sources && cd /sources && tar -xf pkgconf-${PKGCONFIG_VERSION}.tar
     --with-pkg-config-dir=/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig && \
     make -s -j${JOBS} && \
     make -s -j${JOBS} DESTDIR=/pkgconfig install && make -s -j${JOBS} install && ln -s pkgconf /pkgconfig/usr/bin/pkg-config
-
-## autoconf
-FROM stage1 AS autoconf
-
-ARG AUTOCONF_VERSION=2.71
-ENV AUTOCONF_VERSION=${AUTOCONF_VERSION}
-
-RUN mkdir /sources && cd /sources && wget http://mirror.easyname.at/gnu/autoconf/autoconf-${AUTOCONF_VERSION}.tar.xz && \
-    tar -xf autoconf-${AUTOCONF_VERSION}.tar.xz && mv autoconf-${AUTOCONF_VERSION} autoconf && \
-    cd autoconf && mkdir -p /autoconf && ./configure --quiet ${COMMON_ARGS} && make -s -j${JOBS} DESTDIR=/autoconf && \
-    make -s -j${JOBS} DESTDIR=/autoconf install && make -s -j${JOBS} install
-
-## automake
-FROM stage1 AS automake
-
-ARG AUTOMAKE_VERSION=1.16.5
-ENV AUTOMAKE_VERSION=${AUTOMAKE_VERSION}
-
-RUN mkdir /sources && cd /sources && wget http://mirror.easyname.at/gnu/automake/automake-${AUTOMAKE_VERSION}.tar.xz && \
-    tar -xf automake-${AUTOMAKE_VERSION}.tar.xz && mv automake-${AUTOMAKE_VERSION} automake && \
-    cd automake && mkdir -p /automake && ./configure --quiet ${COMMON_ARGS} && make -s -j${JOBS} DESTDIR=/automake && \
-    make -s -j${JOBS} DESTDIR=/automake install && make -s -j${JOBS} install
 
 ## xxhash
 FROM stage1 AS xxhash
@@ -1117,6 +1155,289 @@ RUN ninja -C buildDir
 RUN DESTDIR=/systemd ninja -C buildDir install
 RUN ninja -C buildDir install
 
+## flex
+FROM m4 as flex
+ARG FLEX_VERSION=2.6.4
+ENV FLEX_VERSION=${FLEX_VERSION}
+
+COPY --from=sources-downloader /sources/downloads/flex-${FLEX_VERSION}.tar.gz /sources/
+
+RUN mkdir -p /sources && cd /sources && tar -xvf flex-${FLEX_VERSION}.tar.gz && mv flex-${FLEX_VERSION} flex && cd flex && mkdir -p /flex && ./configure ${COMMON_ARGS} --docdir=/usr/share/doc/flex-${FLEX_VERSION} --disable-dependency-tracking --infodir=/usr/share/info --mandir=/usr/share/man --prefix=/usr --disable-static --enable-shared ac_cv_func_malloc_0_nonnull=yes ac_cv_func_realloc_0_nonnull=yes && \
+    make DESTDIR=/flex install && make install && ln -s flex /flex/usr/bin/lex
+
+## bison
+FROM rsync as bison
+
+ARG BISON_VERSION=3.8.2
+ENV BISON_VERSION=${BISON_VERSION}
+
+COPY --from=flex /flex /flex
+RUN rsync -aHAX --keep-dirlinks  /flex/. /
+
+COPY --from=m4 /m4 /m4
+RUN rsync -aHAX --keep-dirlinks  /m4/. /
+
+COPY --from=perl /perl /perl
+RUN rsync -aHAX --keep-dirlinks  /perl/. /
+
+COPY --from=sources-downloader /sources/downloads/bison-${BISON_VERSION}.tar.xz /sources/
+RUN mkdir -p /sources && cd /sources && tar -xvf bison-${BISON_VERSION}.tar.xz && mv bison-${BISON_VERSION} bison && cd bison && mkdir -p /bison && ./configure ${COMMON_ARGS} --disable-dependency-tracking --infodir=/usr/share/info --mandir=/usr/share/man --prefix=/usr --disable-static --enable-shared && \
+    make DESTDIR=/bison install && make install
+
+
+## autoconf
+FROM rsync AS autoconf
+
+ARG AUTOCONF_VERSION=2.71
+ENV AUTOCONF_VERSION=${AUTOCONF_VERSION}
+
+
+COPY --from=m4 /m4 /m4
+RUN rsync -aHAX --keep-dirlinks  /m4/. /
+
+
+COPY --from=perl /perl /perl
+RUN rsync -aHAX --keep-dirlinks  /perl/. /
+
+COPY --from=sources-downloader /sources/downloads/autoconf-${AUTOCONF_VERSION}.tar.xz /sources/
+
+RUN mkdir -p /sources && cd /sources && tar -xvf autoconf-${AUTOCONF_VERSION}.tar.xz && mv autoconf-${AUTOCONF_VERSION} autoconf && \
+    cd autoconf && mkdir -p /autoconf && ./configure ${COMMON_ARGS} --prefix=/usr && make DESTDIR=/autoconf && \
+    make DESTDIR=/autoconf install && make install
+
+
+## automake
+FROM rsync AS automake
+
+ARG AUTOMAKE_VERSION=1.18.1
+ENV AUTOMAKE_VERSION=${AUTOMAKE_VERSION}
+
+
+COPY --from=perl /perl /perl
+RUN rsync -aHAX --keep-dirlinks  /perl/. /
+
+COPY --from=autoconf /autoconf /autoconf
+RUN rsync -aHAX --keep-dirlinks  /autoconf/. /
+
+COPY --from=m4 /m4 /m4
+RUN rsync -aHAX --keep-dirlinks  /m4/. /
+
+COPY --from=sources-downloader /sources/downloads/automake-${AUTOMAKE_VERSION}.tar.xz /sources/
+
+RUN mkdir -p /sources && cd /sources && tar -xvf automake-${AUTOMAKE_VERSION}.tar.xz && mv automake-${AUTOMAKE_VERSION} automake && \
+    cd automake && mkdir -p /automake && ./configure ${COMMON_ARGS} --prefix=/usr && make DESTDIR=/automake && \
+    make DESTDIR=/automake install && make install
+
+
+## argp-standalone
+FROM rsync as argp-standalone
+
+ARG ARGP_STANDALONE_VERSION=1.3
+ENV ARGP_STANDALONE_VERSION=${ARGP_STANDALONE_VERSION}
+
+ENV CFLAGS="$CFLAGS -fPIC"
+
+COPY --from=autoconf /autoconf /autoconf
+RUN rsync -aHAX --keep-dirlinks  /autoconf/. /
+
+COPY --from=perl /perl /perl
+RUN rsync -aHAX --keep-dirlinks  /perl/. /
+
+COPY --from=automake /automake /automake
+RUN rsync -aHAX --keep-dirlinks  /automake/. /
+
+COPY --from=m4 /m4 /m4
+RUN rsync -aHAX --keep-dirlinks  /m4/. /
+
+COPY --from=sources-downloader /sources/downloads/argp-standalone-${ARGP_STANDALONE_VERSION}.tar.gz /sources/
+RUN mkdir -p /sources && cd /sources && tar -xvf argp-standalone-${ARGP_STANDALONE_VERSION}.tar.gz && mv argp-standalone-${ARGP_STANDALONE_VERSION} argp-standalone && cd argp-standalone && mkdir -p /argp-standalone && autoreconf -vif && ./configure ${COMMON_ARGS} --disable-dependency-tracking --mandir=/usr/share/man --prefix=/usr --disable-static --enable-shared -sysconfdir=/etc --localstatedir=/var && \
+    make DESTDIR=/argp-standalone install && make install && install -D -m644 argp.h /argp-standalone/usr/include/argp.h && install -D -m755 libargp.a /argp-standalone/usr/lib/libargp.a
+
+## libtool
+FROM rsync as libtool
+
+ARG LIBTOOL_VERSION=2.5.4
+ENV LIBTOOL_VERSION=${LIBTOOL_VERSION}
+
+COPY --from=m4 /m4 /m4
+RUN rsync -aHAX --keep-dirlinks  /m4/. /
+
+COPY --from=sources-downloader /sources/downloads/libtool-${LIBTOOL_VERSION}.tar.xz /sources/
+
+RUN mkdir -p /sources && cd /sources && tar -xvf libtool-${LIBTOOL_VERSION}.tar.xz && mv libtool-${LIBTOOL_VERSION} libtool && cd libtool && mkdir -p /libtool && sed -i \
+-e "s|test-funclib-quote.sh||" \
+-e "s|test-option-parser.sh||" \
+gnulib-tests/Makefile.in && ./configure ${COMMON_ARGS} --disable-dependency-tracking --prefix=/usr --disable-static --enable-shared && \
+    make DESTDIR=/libtool install && make install
+
+## fts
+
+FROM rsync as fts
+ARG FTS_VERSION=1.2.7
+ENV FTS_VERSION=${FTS_VERSION}
+
+ENV CFLAGS="$CFLAGS -fPIC"
+
+COPY --from=autoconf /autoconf /autoconf
+RUN rsync -aHAX --keep-dirlinks  /autoconf/. /
+
+COPY --from=automake /automake /automake
+RUN rsync -aHAX --keep-dirlinks  /automake/. /
+
+COPY --from=m4 /m4 /m4
+RUN rsync -aHAX --keep-dirlinks  /m4/. /
+
+COPY --from=perl /perl /perl
+RUN rsync -aHAX --keep-dirlinks  /perl/. /
+
+COPY --from=libtool /libtool /libtool
+RUN rsync -aHAX --keep-dirlinks  /libtool/. /
+
+COPY --from=pkgconfig /pkgconfig /pkgconfig
+RUN rsync -aHAX --keep-dirlinks  /pkgconfig/. /
+
+COPY --from=sources-downloader /sources/downloads/musl-fts-${FTS_VERSION}.tar.gz /sources/
+
+RUN mkdir -p /sources && cd /sources && tar -xvf musl-fts-${FTS_VERSION}.tar.gz && mv musl-fts-${FTS_VERSION} fts && cd fts && mkdir -p /fts && ./bootstrap.sh && ./configure ${COMMON_ARGS} --disable-dependency-tracking --prefix=/usr --disable-static --enable-shared --localstatedir=/var --mandir=/usr/share/man  --sysconfdir=/etc  && \
+    make DESTDIR=/fts install && make install &&  cp musl-fts.pc /fts/usr/lib/pkgconfig/libfts.pc
+
+## musl-obstack
+FROM rsync as musl-obstack
+ARG MUSL_OBSTACK_VERSION=1.2.3
+ENV MUSL_OBSTACK_VERSION=${MUSL_OBSTACK_VERSION}
+
+COPY --from=autoconf /autoconf /autoconf
+RUN rsync -aHAX --keep-dirlinks  /autoconf/. /
+
+COPY --from=automake /automake /automake
+RUN rsync -aHAX --keep-dirlinks  /automake/. /
+
+COPY --from=libtool /libtool /libtool
+RUN rsync -aHAX --keep-dirlinks  /libtool/. /
+
+COPY --from=m4 /m4 /m4
+RUN rsync -aHAX --keep-dirlinks  /m4/. /
+
+COPY --from=perl /perl /perl
+RUN rsync -aHAX --keep-dirlinks  /perl/. /
+
+COPY --from=pkgconfig /pkgconfig /pkgconfig
+RUN rsync -aHAX --keep-dirlinks  /pkgconfig/. /
+
+
+COPY --from=sources-downloader /sources/downloads/musl-obstack-${MUSL_OBSTACK_VERSION}.tar.gz /sources/
+RUN mkdir -p /sources && cd /sources && tar -xvf musl-obstack-${MUSL_OBSTACK_VERSION}.tar.gz && mv musl-obstack-${MUSL_OBSTACK_VERSION} musl-obstack && cd musl-obstack && mkdir -p /musl-obstack && ./bootstrap.sh && ./configure ${COMMON_ARGS} --disable-dependency-tracking --prefix=/usr --disable-static --enable-shared && \
+    make DESTDIR=/musl-obstack install && make install
+
+## elfutils
+
+FROM rsync as elfutils
+
+ARG ELFUTILS_VERSION=0.193
+ENV ELFUTILS_VERSION=${ELFUTILS_VERSION}
+
+COPY --from=pkgconfig /pkgconfig /pkgconfig
+RUN rsync -aHAX --keep-dirlinks  /pkgconfig/. /
+
+COPY --from=argp-standalone /argp-standalone /argp-standalone
+RUN rsync -aHAX --keep-dirlinks  /argp-standalone/. /
+
+COPY --from=fts /fts /fts
+RUN rsync -aHAX --keep-dirlinks  /fts/. /
+
+COPY --from=zstd /zstd /zstd
+RUN rsync -aHAX --keep-dirlinks  /zstd/. /
+
+COPY --from=zlib /zlib /zlib
+RUN rsync -aHAX --keep-dirlinks  /zlib/. /
+
+COPY --from=m4 /m4 /m4
+RUN rsync -aHAX --keep-dirlinks  /m4/. /
+
+COPY --from=musl-obstack /musl-obstack /musl-obstack
+RUN rsync -aHAX --keep-dirlinks  /musl-obstack/. /
+
+COPY --from=sources-downloader /sources/downloads/elfutils-${ELFUTILS_VERSION}.tar.bz2 /sources/
+COPY --from=sources-downloader /sources/downloads/elfutils-patches /sources/downloads/elfutils-patches
+
+RUN mkdir -p /sources && cd /sources && tar -xvf elfutils-${ELFUTILS_VERSION}.tar.bz2 && mv elfutils-${ELFUTILS_VERSION} elfutils && cd elfutils && mkdir -p /elfutils && patch -p1 -i /sources/downloads/elfutils-patches/musl-macros.patch && ./configure ${COMMON_ARGS} --disable-dependency-tracking --infodir=/usr/share/info --mandir=/usr/share/man --prefix=/usr --disable-static --enable-shared \
+--sysconfdir=/etc \
+--localstatedir=/var \
+--disable-werror \
+--program-prefix=eu- \
+--enable-deterministic-archives \
+--disable-nls \
+--disable-libdebuginfod \
+--disable-debuginfod \
+--with-zstd && \
+    make DESTDIR=/elfutils install && make install
+
+## kernel
+FROM rsync as kernel
+
+ARG TARGETARCH
+COPY --from=bash /bash /bash
+RUN rsync -aHAX --keep-dirlinks  /bash/. /
+
+COPY --from=readline /readline /readline
+RUN rsync -aHAX --keep-dirlinks  /readline/. /
+
+COPY --from=flex /flex /flex
+RUN rsync -aHAX --keep-dirlinks  /flex/. /
+
+COPY --from=m4 /m4 /m4
+RUN rsync -aHAX --keep-dirlinks  /m4/. /
+
+COPY --from=bison /bison /bison
+RUN rsync -aHAX --keep-dirlinks  /bison/. /
+
+COPY --from=elfutils /elfutils /elfutils
+RUN rsync -aHAX --keep-dirlinks  /elfutils/. /
+
+COPY --from=openssl /openssl /openssl
+RUN rsync -aHAX --keep-dirlinks  /openssl/. /
+
+COPY --from=perl /perl /perl
+RUN rsync -aHAX --keep-dirlinks  /perl/. /
+
+ARG KERNEL_VERSION=6.16.7
+ENV KERNEL_VERSION=${KERNEL_VERSION}
+
+COPY --from=sources-downloader /sources/downloads/linux-${KERNEL_VERSION}.tar.xz /sources/
+RUN rm -fv /bin/sh && ln -s /bin/bash /bin/sh
+RUN mkdir -p /sources/kernel-configs
+
+COPY ./files/kernel/* /sources/kernel-configs/
+
+RUN mkdir -p /sources && cd /sources && tar -xf linux-${KERNEL_VERSION}.tar.xz && mv linux-${KERNEL_VERSION} kernel
+
+RUN <<EOT bash
+if [[ "${TARGETARCH}" == "amd64" ]]; then
+    cp -rfv /sources/kernel-configs/ukairos-x86_64.config .config
+else 
+    cp -rfv /sources/kernel-configs/ukairos-${TARGETARCH}.config .config
+fi
+
+cd /sources/kernel && make ARCH=x86_64  olddefconfig && make ARCH=x86_64  KBUILD_BUILD_VERSION="$KERNEL_VERSION-${VENDOR}"
+EOT
+
+## TODO: steps below are basically untested
+## TODO: we miss also compiling modules
+
+RUN <<EOT bash
+mkdir -p /kernel/boot
+KARCH=amd64
+if [[ "${TARGETARCH}" == "amd64" ]]; then
+KARCH=x86_64
+fi
+cd /sources/kernel 
+if [[ -L "arch/${KARCH}/boot/bzImage" ]]; then
+   cp -rfv $(readlink -f "arch/${KARCH}/boot/bzImage") /kernel/boot/"kernel-${KERNEL_PREFIX}-${KARCH}-${PACKAGE_VERSION}-${VENDOR}"
+else
+   cp -rfv arch/${KARCH}/boot/bzImage /kernel/boot/"kernel-${KERNEL_PREFIX}-${KARCH}-${PACKAGE_VERSION}-${VENDOR}"
+fi
+
+EOT
 
 ## dbus second pass pass with systemd support, so we can have a working systemd and dbus
 FROM python-build AS dbus-systemd
@@ -1335,16 +1656,6 @@ RUN rsync -aHAX --keep-dirlinks  /iptables/. /skeleton
 # We don't need headers
 RUN rm -rf /skeleton/usr/include
 
-FROM quay.io/luet/base:0.36.2 AS luet-base
-
-## Install kernel
-FROM alpine AS luet-kernel
-COPY --from=luet-base /usr/bin/luet /usr/bin/luet
-RUN mkdir -p /etc/luet/repos.conf.d/
-RUN luet repo add -y kairos --url quay.io/kairos/packages --type docker
-RUN luet repo update
-RUN luet install -y kernels/linux-tiny --system-target /kernel
-
 ## Immucore for initramfs
 FROM alpine AS immucore
 RUN wget https://github.com/kairos-io/immucore/releases/download/v0.11.3/immucore-v0.11.3-linux-amd64.tar.gz
@@ -1417,13 +1728,17 @@ RUN echo -e "[Match]\nName=en*\n\n[Network]\nDHCP=yes\n" > /etc/systemd/network/
 ## Its the kairos-init the one that will take care of the rest
 FROM scratch AS stage2
 COPY --from=stage2-merge /skeleton /
+
+FROM stage2 AS stage3
 RUN busybox --install
 ## Workaround to have bash as /bin/sh after busybox overrides it
 RUN rm /bin/sh && ln -s /bin/bash /bin/sh
 RUN systemctl preset-all
-COPY --from=luet-kernel /kernel/boot/vmlinuz /boot/vmlinuz
-COPY --from=luet-kernel /kernel/lib/modules/ /lib/modules/
+
+## TODO: The images probably are not shipping the files there
+COPY --from=kernel /kernel/boot/vmlinuz /boot/vmlinuz
+COPY --from=kernel /kernel/lib/modules/ /lib/modules/
 
 ### final image
-FROM stage2 AS default
+FROM stage3 AS default
 CMD ["/bin/bash", "-l"]
