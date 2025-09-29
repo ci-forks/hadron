@@ -1,7 +1,7 @@
 MUSL_CROSS_MAKE_VERSION=6f3701d08137496d5aac479e3a3977b5ae993c1f
 IMAGE_NAME=ukairos
 AURORA_IMAGE=quay.io/kairos/auroraboot:v0.9.0
-TARGET=default
+TARGET ?= default
 
 .PHONY: build
 build:
