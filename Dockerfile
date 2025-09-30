@@ -1722,8 +1722,8 @@ RUN busybox --install
 ## Workaround to have bash as /bin/sh after busybox overrides it
 RUN rm /bin/sh && ln -s /bin/bash /bin/sh
 RUN systemctl preset-all
-COPY --from=luet-kernel /kernel/boot/vmlinuz /boot/vmlinuz
-COPY --from=luet-kernel /kernel/lib/modules/ /lib/modules/
+COPY --from=kernel /kernel/vmlinuz /boot/vmlinuz
+COPY --from=kernel /modules/ /lib/modules/
 COPY --from=initramfs-builder /init.cpio /boot/initramfs
 COPY --from=kairos-agent /kairos-agent /usr/bin/kairos-agent
 # workaround as we dont have the /system/oem files
