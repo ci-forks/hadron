@@ -225,6 +225,25 @@ RUN cd /sources/downloads && wget https://sourceware.org/elfutils/ftp/${ELFUTILS
 
 RUN cd /sources/downloads && mkdir -p elfutils-patches && wget https://gitlab.alpinelinux.org/alpine/aports/-/raw/master/main/elfutils/musl-macros.patch -O elfutils-patches/musl-macros.patch
 
+## xzutils
+ARG XZUTILS_VERSION=5.8.1
+ENV XZUTILS_VERSION=${XZUTILS_VERSION}
+
+RUN cd /sources/downloads && wget https://tukaani.org/xz/xz-${XZUTILS_VERSION}.tar.gz && mv xz-${XZUTILS_VERSION}.tar.gz xz.tar.gz
+
+## kmod
+ARG KMOD_VERSION=34
+ENV KMOD_VERSION=${KMOD_VERSION}
+
+RUN cd /sources/downloads && wget https://www.kernel.org/pub/linux/utils/kernel/kmod/kmod-${KMOD_VERSION}.tar.gz && mv kmod-${KMOD_VERSION}.tar.gz kmod.tar.gz
+
+## dracut
+ARG DRACUT_VERSION=108
+ENV DRACUT_VERSION=${DRACUT_VERSION}
+
+RUN cd /sources/downloads && wget https://github.com/dracut-ng/dracut-ng/archive/refs/tags/${DRACUT_VERSION}.tar.gz && mv ${DRACUT_VERSION}.tar.gz dracut.tar.gz
+
+
 FROM stage0 AS skeleton
 
 COPY ./setup_rootfs.sh ./setup_rootfs.sh
@@ -624,11 +643,18 @@ FROM stage1 AS binutils
 
 ARG BINUTILS_VERSION=2.44
 ENV BINUTILS_VERSION=${BINUTILS_VERSION}
-
-RUN mkdir /sources && cd /sources && wget https://ftpmirror.gnu.org/binutils/binutils-${BINUTILS_VERSION}.tar.xz && \
+ARG JOBS
+RUN mkdir /sources && cd /sources && wget http://ftpmirror.gnu.org/binutils/binutils-${BINUTILS_VERSION}.tar.xz && \
     tar -xf binutils-${BINUTILS_VERSION}.tar.xz && mv binutils-${BINUTILS_VERSION} binutils && \
-    cd binutils && mkdir -p /binutils && ./configure --quiet ${COMMON_ARGS} && make -s -j${JOBS} DESTDIR=/binutils && \
-    make -s -j${JOBS} DESTDIR=/binutils install && make -s -j${JOBS} install
+    cd binutils && mkdir -p /binutils
+WORKDIR /sources/binutils
+ENV AR=ar
+ENV GCC=gcc
+ENV AS=as
+RUN ./configure --quiet ${COMMON_ARGS}
+RUN make -s -j${JOBS} DESTDIR=/binutils
+RUN make -s -j${JOBS} DESTDIR=/binutils install
+RUN make -s -j${JOBS} install
 
 ## ncurses
 FROM stage1 AS ncurses
@@ -1554,6 +1580,83 @@ RUN sed -i '/^[[:space:]]*#include[[:space:]]*<linux\/if_ether\.h>/d' extensions
 RUN ./configure --quiet --prefix=/usr --with-xtlibdir=/usr/lib/xtables
 RUN make -s -s && make -s -s install DESTDIR=/iptables
 
+
+## xz and liblzma
+FROM rsync AS xz
+COPY --from=sources-downloader /sources/downloads/xz.tar.gz /sources/
+RUN mkdir -p /xz
+WORKDIR /sources
+RUN tar -xf xz.tar.gz && mv xz-* xz
+WORKDIR /sources/xz
+RUN ./configure --quiet --prefix=/usr --disable-static --disable-doc --enable-small --disable-scripts
+RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/xz && make -s -j${JOBS} install
+
+
+## kmod so modprobe, insmod, lsmod, modinfo, rmmod are available
+FROM python-build AS kmod
+ARG JOBS
+## we need liblzma from xz to build
+COPY --from=xz /xz /xz
+RUN rsync -aHAX --keep-dirlinks  /xz/. /
+
+## Override ln so the install works
+COPY --from=coreutils /coreutils /coreutils
+RUN rsync -aHAX --keep-dirlinks  /coreutils/. /
+
+COPY --from=libcap /libcap /libcap
+RUN rsync -aHAX --keep-dirlinks  /libcap/. /
+
+
+COPY --from=sources-downloader /sources/downloads/kmod.tar.gz /sources/
+RUN mkdir -p /kmod
+WORKDIR /sources
+RUN tar -xf kmod.tar.gz && mv kmod-* kmod
+WORKDIR /sources/kmod
+RUN pip3 install meson ninja
+RUN meson setup buildDir --prefix=/usr --buildtype=minsize --optimization 3 -Dmanpages=false
+RUN DESTDIR=/kmod ninja -C buildDir -j ${JOBS} install && ninja -C buildDir -j ${JOBS} install
+
+
+FROM rsync AS dracut
+
+
+COPY --from=pkgconfig /pkgconfig /pkgconfig
+RUN rsync -aHAX --keep-dirlinks  /pkgconfig/. /
+COPY --from=bash /bash /bash
+RUN rsync -aHAX --keep-dirlinks  /bash/. /
+COPY --from=coreutils /coreutils /coreutils
+RUN rsync -aHAX --keep-dirlinks  /coreutils/. /
+
+COPY --from=zstd /zstd /zstd
+RUN rsync -aHAX --keep-dirlinks  /zstd/. /
+COPY --from=zlib /zlib /zlib
+RUN rsync -aHAX --keep-dirlinks  /zlib/. /
+COPY --from=libcap /libcap /libcap
+RUN rsync -aHAX --keep-dirlinks  /libcap/. /
+
+COPY --from=openssl /openssl /openssl
+RUN rsync -aHAX --keep-dirlinks  /openssl/. /
+COPY --from=readline /readline /readline
+RUN rsync -aHAX --keep-dirlinks  /readline/. /
+COPY --from=kmod /kmod /kmod
+RUN rsync -aHAX --keep-dirlinks  /kmod/. /
+COPY --from=systemd /systemd /systemd
+RUN rsync -aHAX --keep-dirlinks  /systemd/. /
+COPY --from=fts /fts /fts
+RUN rsync -aHAX --keep-dirlinks  /fts/. /
+COPY --from=xz /xz /xz
+RUN rsync -aHAX --keep-dirlinks  /xz/. /
+
+COPY --from=sources-downloader /sources/downloads/dracut.tar.gz /sources/
+RUN mkdir -p /dracut
+WORKDIR /sources
+RUN tar -xf dracut.tar.gz && mv dracut-* dracut
+WORKDIR /sources/dracut
+## TODO: Fix this, it should be set everywhere already?
+ENV CC=gcc
+RUN ./configure --disable-asciidoctor --disable-documentation --prefix=/usr
+RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/dracut
+
 ########################################################
 #
 # Stage 2 - Building the final image
@@ -1661,6 +1764,35 @@ RUN rsync -aHAX --keep-dirlinks  /kbd/. /skeleton
 
 COPY --from=iptables /iptables /iptables
 RUN rsync -aHAX --keep-dirlinks  /iptables/. /skeleton
+
+## kmod for modprobe, insmod, lsmod, modinfo, rmmod. Draut depends on this
+COPY --from=kmod /kmod /kmod
+RUN rsync -aHAX --keep-dirlinks  /kmod/. /skeleton
+
+## fts library, dracut depends on this
+COPY --from=fts /fts /fts
+RUN rsync -aHAX --keep-dirlinks  /fts/. /skeleton
+
+## xz and liblzma, dracut depends on this
+COPY --from=xz /xz /xz
+RUN rsync -aHAX --keep-dirlinks  /xz/. /skeleton
+
+## lz4, dracut depends on this if mixed with systemd
+COPY --from=lz4 /lz4 /lz4
+RUN rsync -aHAX --keep-dirlinks  /lz4/. /skeleton
+
+## binutils, dracut depends on ldd to find needed modules for initramfs
+COPY --from=binutils /binutils /binutils
+RUN rsync -aHAX --keep-dirlinks  /binutils/. /skeleton
+
+## Dracut
+COPY --from=dracut /dracut /dracut
+RUN rsync -aHAX --keep-dirlinks  /dracut/. /skeleton
+
+# kernel and modules
+COPY --from=kernel /kernel/vmlinuz /skeleton/boot/vmlinuz
+COPY --from=kernel /modules/lib/modules/ /skeleton/lib/modules
+
 ## Cleanup
 
 # We don't need headers
@@ -1744,10 +1876,6 @@ RUN busybox --install
 ## Workaround to have bash as /bin/sh after busybox overrides it
 RUN rm /bin/sh && ln -s /bin/bash /bin/sh
 RUN systemctl preset-all
-
-## TODO: The images probably are not shipping the files there
-COPY --from=kernel /kernel/vmlinuz /boot/vmlinuz
-COPY --from=kernel /modules/ /lib/modules/
 
 ### final image
 FROM stage3 AS default
