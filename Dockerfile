@@ -1,6 +1,8 @@
 ## This is Dockerfile, that at the end of the process it builds a 
 ## small LFS system, starting from Alpine Linux.
 ## It uses mussel to build the system.
+ARG BOOTLOADER=grub
+
 
 FROM alpine AS stage0
 
@@ -1764,6 +1766,23 @@ RUN rsync -aHAX --keep-dirlinks  /kbd/. /skeleton
 COPY --from=iptables /iptables /iptables
 RUN rsync -aHAX --keep-dirlinks  /iptables/. /skeleton
 
+# kernel and modules
+COPY --from=kernel /kernel/vmlinuz /skeleton/boot/vmlinuz
+COPY --from=kernel /modules/lib/modules/ /skeleton/lib/modules
+
+## TODO: provide ldconfig and ldd, both scripts for dracut
+COPY files/ldconfig /skeleton/sbin/ldconfig
+COPY files/ldd /skeleton/usr/bin/ldd
+RUN chmod 755 /skeleton/sbin/ldconfig /skeleton/usr/bin/ldd
+
+## Cleanup
+
+# We don't need headers
+RUN rm -rf /skeleton/usr/include
+
+## This target will assemble dracut and all its dependencies into the skeleton
+FROM stage0 AS dracut-final
+RUN apk add rsync
 ## kmod for modprobe, insmod, lsmod, modinfo, rmmod. Draut depends on this
 COPY --from=kmod /kmod /kmod
 RUN rsync -aHAX --keep-dirlinks  /kmod/. /skeleton
@@ -1783,20 +1802,6 @@ RUN rsync -aHAX --keep-dirlinks  /lz4/. /skeleton
 ## Dracut
 COPY --from=dracut /dracut /dracut
 RUN rsync -aHAX --keep-dirlinks  /dracut/. /skeleton
-
-# kernel and modules
-COPY --from=kernel /kernel/vmlinuz /skeleton/boot/vmlinuz
-COPY --from=kernel /modules/lib/modules/ /skeleton/lib/modules
-
-## TODO: provide ldconfig and ldd, both scripts for dracut
-COPY files/ldconfig /skeleton/sbin/ldconfig
-COPY files/ldd /skeleton/usr/bin/ldd
-RUN chmod 755 /skeleton/sbin/ldconfig /skeleton/usr/bin/ldd
-
-## Cleanup
-
-# We don't need headers
-RUN rm -rf /skeleton/usr/include
 
 ## Immucore for initramfs
 FROM alpine AS immucore
@@ -1863,15 +1868,40 @@ RUN mkdir -p /system/oem/
 ## Make eth devices managed by systemd-networkd
 RUN echo -e "[Match]\nName=en*\n\n[Network]\nDHCP=yes\n" > /etc/systemd/network/20-wired.network
 
-## Assemble the final image
-## you can pass this image to init like if it was any other base image and it should generate
-## a kairosified image
-## Note that in here we serve the minimal systeml, no workarounds, no initrd, just the kernel and system
-## Its the kairos-init the one that will take care of the rest
-FROM scratch AS stage2
-COPY --from=stage2-merge /skeleton /
 
-FROM stage2 AS stage3
+
+### Assemble the image depending on our bootloader
+## either grub or systemd-boot for trusted boot
+## To not merge things and have extra software where we dont want it we prepare a base image with all the
+## needed software and then we merge it with the bootloader specific stuff
+
+## This workarounds over the COPY not being able to run over the same dir
+FROM alpine AS stage2-pre-grub
+RUN apk add rsync
+COPY --from=stage2-merge /skeleton /stage2-merge
+RUN rsync -aHAX --keep-dirlinks  /stage2-merge/. /skeleton/
+COPY --from=dracut-final /skeleton /dracut-final
+RUN rsync -aHAX --keep-dirlinks  /dracut-final/. /skeleton/
+
+
+FROM alpine AS stage2-pre-systemd
+RUN apk add rsync
+COPY --from=stage2-merge /skeleton /stage2-merge
+RUN rsync -aHAX --keep-dirlinks  /stage2-merge/. /skeleton/
+## Systemd-boot would go here to merge with the skeleton
+
+## Final image for grub
+FROM scratch AS stage2-grub
+COPY --from=stage2-pre-grub /skeleton /
+# grub would go in here I guess
+
+## Final image for systemd-boot
+FROM stage2-merge AS stage2-systemd
+COPY --from=stage2-pre-systemd /skeleton /
+## install systemd-boot here I guess
+
+## Final image depending on the bootloader
+FROM stage2-${BOOTLOADER} AS stage3
 RUN busybox --install
 ## Workaround to have bash as /bin/sh after busybox overrides it
 RUN rm /bin/sh && ln -s /bin/bash /bin/sh
