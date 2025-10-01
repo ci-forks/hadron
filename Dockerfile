@@ -2,6 +2,7 @@
 ## small LFS system, starting from Alpine Linux.
 ## It uses mussel to build the system.
 ARG BOOTLOADER=grub
+ARG VERSION=0.0.1
 
 
 FROM alpine AS stage0
@@ -245,6 +246,72 @@ ENV DRACUT_VERSION=${DRACUT_VERSION}
 
 RUN cd /sources/downloads && wget https://github.com/dracut-ng/dracut-ng/archive/refs/tags/${DRACUT_VERSION}.tar.gz && mv ${DRACUT_VERSION}.tar.gz dracut.tar.gz
 
+## libaio
+
+ARG LIBAIO_VERSION=0.3.113
+ENV LIBAIO_VERSION=${LIBAIO_VERSION}
+
+RUN cd /sources/downloads && wget https://pagure.io/libaio/archive/libaio-${LIBAIO_VERSION}/libaio-libaio-${LIBAIO_VERSION}.tar.gz && mv libaio-libaio-${LIBAIO_VERSION}.tar.gz libaio.tar.gz
+
+## lvm2
+ARG LVM2_VERSION=2.03.35
+ENV LVM2_VERSION=${LVM2_VERSION}
+
+RUN cd /sources/downloads && wget http://ftp-stud.fht-esslingen.de/pub/Mirrors/sourceware.org/lvm2/releases/LVM2.${LVM2_VERSION}.tgz && mv LVM2.${LVM2_VERSION}.tgz lvm2.tgz
+
+
+## multipath-tools
+ARG MULTIPATH_TOOLS_VERSION=0.11.0
+ENV MULTIPATH_TOOLS_VERSION=${MULTIPATH_TOOLS_VERSION}
+
+RUN cd /sources/downloads && wget https://github.com/opensvc/multipath-tools/archive/refs/tags/${MULTIPATH_TOOLS_VERSION}.tar.gz && mv ${MULTIPATH_TOOLS_VERSION}.tar.gz multipath-tools.tar.gz
+
+
+## jsonc
+ARG JSONC_VERSION=0.18
+ENV JSONC_VERSION=${JSONC_VERSION}
+
+RUN cd /sources/downloads && wget https://s3.amazonaws.com/json-c_releases/releases/json-c-${JSONC_VERSION}.tar.gz && mv json-c-${JSONC_VERSION}.tar.gz json-c.tar.gz
+
+## cmake
+ARG CMAKE_VERSION=4.1.1
+ENV CMAKE_VERSION=${CMAKE_VERSION}
+
+RUN cd /sources/downloads && wget https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}.tar.gz && mv cmake-${CMAKE_VERSION}.tar.gz cmake.tar.gz
+
+## urcu
+ARG URCU_VERSION=0.15.3
+ENV URCU_VERSION=${URCU_VERSION}
+RUN cd /sources/downloads && wget https://lttng.org/files/urcu/userspace-rcu-${URCU_VERSION}.tar.bz2 && mv userspace-rcu-${URCU_VERSION}.tar.bz2 urcu.tar.bz2
+
+
+## parted
+ARG PARTED_VERSION=3.6
+ENV PARTED_VERSION=${PARTED_VERSION}
+
+RUN cd /sources/downloads && wget https://ftpmirror.gnu.org/gnu/parted/parted-${PARTED_VERSION}.tar.xz && mv parted-${PARTED_VERSION}.tar.xz parted.tar.xz
+
+## e2fsprogs
+ARG E2FSPROGS_VERSION=1.46.6
+ENV E2FSPROGS_VERSION=${E2FSPROGS_VERSION}
+
+RUN cd /sources/downloads && wget https://mirrors.edge.kernel.org/pub/linux/kernel/people/tytso/e2fsprogs/v${E2FSPROGS_VERSION}/e2fsprogs-${E2FSPROGS_VERSION}.tar.xz && mv e2fsprogs-${E2FSPROGS_VERSION}.tar.xz e2fsprogs.tar.xz
+
+## dosfstools
+ARG DOSFSTOOLS_VERSION=4.2
+ENV DOSFSTOOLS_VERSION=${DOSFSTOOLS_VERSION}
+RUN cd /sources/downloads && wget https://github.com/dosfstools/dosfstools/releases/download/v${DOSFSTOOLS_VERSION}/dosfstools-${DOSFSTOOLS_VERSION}.tar.gz && mv dosfstools-${DOSFSTOOLS_VERSION}.tar.gz dosfstools.tar.gz
+
+## sgdisk
+ARG SGDISK_VERSION=1.0.8
+ENV SGDISK_VERSION=${SGDISK_VERSION}
+RUN cd /sources/downloads && wget https://downloads.sourceforge.net/project/gptfdisk/gptfdisk/${SGDISK_VERSION}/gptfdisk-${SGDISK_VERSION}.tar.gz && mv gptfdisk-${SGDISK_VERSION}.tar.gz gptfdisk.tar.gz
+
+
+## cryptsetup
+ARG CRYPTSETUP_VERSION=2.8.1
+ENV CRYPTSETUP_VERSION=${CRYPTSETUP_VERSION}
+RUN cd /sources/downloads && wget https://cdn.kernel.org/pub/linux/utils/cryptsetup/v${CRYPTSETUP_VERSION%.*}/cryptsetup-${CRYPTSETUP_VERSION}.tar.xz && mv cryptsetup-${CRYPTSETUP_VERSION}.tar.xz cryptsetup.tar.xz
 
 FROM stage0 AS skeleton
 
@@ -1025,7 +1092,6 @@ RUN make -s -j${JOBS} DESTDIR=/python install
 RUN make -s -j${JOBS} install 2>&1
 
 
-
 ## util-linux
 FROM bash AS util-linux
 
@@ -1063,7 +1129,7 @@ RUN mkdir -p /sources && cd /sources && wget http://mirror.easyname.at/gnu/gperf
     make -s -j${JOBS} BUILD_CC=gcc CC="${CC:-gcc}" lib=lib prefix=/usr GOLANG=no DESTDIR=/gperf && \
     make -s -j${JOBS} DESTDIR=/gperf install && make -s -j${JOBS} install
 
-## libseccomp
+## libseccomp for k8s stuff mainly
 FROM rsync AS libseccomp
 COPY --from=gperf /gperf /gperf
 RUN rsync -aHAX --keep-dirlinks  /gperf/. /
@@ -1304,7 +1370,6 @@ gnulib-tests/Makefile.in && ./configure ${COMMON_ARGS} --disable-dependency-trac
     make DESTDIR=/libtool install && make install
 
 ## fts
-
 FROM rsync AS fts
 ARG FTS_VERSION=1.2.7
 ENV FTS_VERSION=${FTS_VERSION}
@@ -1362,8 +1427,8 @@ COPY --from=sources-downloader /sources/downloads/musl-obstack-${MUSL_OBSTACK_VE
 RUN mkdir -p /sources && cd /sources && tar -xvf musl-obstack-${MUSL_OBSTACK_VERSION}.tar.gz && mv musl-obstack-${MUSL_OBSTACK_VERSION} musl-obstack && cd musl-obstack && mkdir -p /musl-obstack && ./bootstrap.sh && ./configure ${COMMON_ARGS} --disable-dependency-tracking --prefix=/usr --disable-static --enable-shared && \
     make DESTDIR=/musl-obstack install && make install
 
-## elfutils
 
+## elfutils
 FROM rsync AS elfutils
 
 ARG ELFUTILS_VERSION=0.193
@@ -1465,17 +1530,16 @@ RUN mkdir -p /kernel && mkdir -p /modules
 
 WORKDIR /sources
 RUN tar -xf linux-${KERNEL_VERSION}.tar.xz && mv linux-${KERNEL_VERSION} kernel
-RUN cp -rfv /sources/kernel-configs/ukairos-${TARGETARCH}.config .config
 WORKDIR /sources/kernel
-RUN make -j${JOBS} olddefconfig
+#RUN cp -rfv /sources/kernel-configs/ukairos-${TARGETARCH}.config .config
+RUN cp -rfv /sources/kernel-configs/tinyconfig.config .config
 # This only builds the kernel
 RUN KBUILD_BUILD_VERSION="$KERNEL_VERSION-${VENDOR}" make -s -j${JOBS} bzImage
 RUN cp arch/$ARCH/boot/bzImage /kernel/vmlinuz
 
 # This builds the modules
 RUN KBUILD_BUILD_VERSION="$KERNEL_VERSION-${VENDOR}" make -s -j${JOBS} modules
-RUN ln -s /modules/lib/modules /lib/modules
-RUN ZSTD_CLEVEL=19 INSTALL_MOD_PATH="/modules" INSTALL_MOD_STRIP=1 DEPMOD=true make modules_install
+RUN KBUILD_BUILD_VERSION="$KERNEL_VERSION-${VENDOR}" ZSTD_CLEVEL=19 INSTALL_MOD_PATH="/modules" INSTALL_MOD_STRIP=1 DEPMOD=true make modules_install
 
 ## dbus second pass pass with systemd support, so we can have a working systemd and dbus
 FROM python-build AS dbus-systemd
@@ -1658,6 +1722,235 @@ ENV CC=gcc
 RUN ./configure --disable-asciidoctor --disable-documentation --prefix=/usr
 RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/dracut
 
+## libaio for lvm2
+FROM rsync AS libaio
+
+COPY --from=sources-downloader /sources/downloads/libaio.tar.gz /sources/
+RUN mkdir -p /libaio
+WORKDIR /sources
+RUN tar -xf libaio.tar.gz && mv libaio-* libaio
+WORKDIR /sources/libaio
+ENV CC=gcc
+RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/libaio
+
+
+FROM rsync AS lvm2
+
+COPY --from=pkgconfig /pkgconfig /pkgconfig
+RUN rsync -aHAX --keep-dirlinks  /pkgconfig/. /
+COPY --from=libaio /libaio /libaio
+RUN rsync -aHAX --keep-dirlinks  /libaio/. /
+COPY --from=readline /readline /readline
+RUN rsync -aHAX --keep-dirlinks  /readline/. /
+COPY --from=sources-downloader /sources/downloads/lvm2.tgz /sources/
+
+RUN mkdir -p /lvm2
+WORKDIR /sources
+RUN tar -xf lvm2.tgz && mv LVM2* lvm2
+WORKDIR /sources/lvm2
+# patch it
+COPY patches/lvm2/001_fix_fopen.patch .
+RUN patch -p1 < 001_fix_fopen.patch
+RUN ./configure --prefix=/usr
+RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/lvm2 && make -s -j${JOBS} install
+
+
+FROM rsync AS cmake
+ARG JOBS
+
+COPY --from=curl /curl /curl
+RUN rsync -aHAX --keep-dirlinks  /curl/. /
+COPY --from=openssl /openssl /openssl
+RUN rsync -aHAX --keep-dirlinks  /openssl/. /
+COPY --from=sources-downloader /sources/downloads/cmake.tar.gz /sources/
+
+RUN mkdir -p /cmake
+WORKDIR /sources
+RUN tar -xf cmake.tar.gz && mv cmake-* cmake
+WORKDIR /sources/cmake
+
+RUN ./bootstrap --prefix=/usr --no-debugger  --parallel=${JOBS}
+RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/cmake && make -s -j${JOBS} install
+
+
+FROM rsync AS jsonc
+
+COPY --from=cmake /cmake /cmake
+RUN rsync -aHAX --keep-dirlinks  /cmake/. /
+COPY --from=bash /bash /bash
+RUN rsync -aHAX --keep-dirlinks  /bash/. /
+COPY --from=readline /readline /readline
+RUN rsync -aHAX --keep-dirlinks  /readline/. /
+COPY --from=openssl /openssl /openssl
+RUN rsync -aHAX --keep-dirlinks  /openssl/. /
+COPY --from=sources-downloader /sources/downloads/json-c.tar.gz /sources/
+
+RUN mkdir -p /jsonc
+WORKDIR /sources
+RUN tar -xf json-c.tar.gz && mv json-c-* jsonc
+WORKDIR /sources/jsonc-build/
+RUN cmake ../jsonc -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/jsonc && make -s -j${JOBS} install
+
+
+FROM rsync AS urcu
+
+COPY --from=sources-downloader /sources/downloads/urcu.tar.bz2 /sources/
+RUN mkdir -p /urcu
+WORKDIR /sources
+RUN tar -xf urcu.tar.bz2 && mv userspace-rcu-* urcu
+WORKDIR /sources/urcu
+RUN ./configure --quiet --prefix=/usr --disable-static --enable-shared
+RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/urcu && make -s -j${JOBS} install
+
+## needed for dracut and other tools
+FROM rsync AS multipath-tools
+
+COPY --from=pkgconfig /pkgconfig /pkgconfig
+RUN rsync -aHAX --keep-dirlinks  /pkgconfig/. /
+# devmapper
+COPY --from=lvm2 /lvm2 /lvm2
+RUN rsync -aHAX --keep-dirlinks  /lvm2/. /
+
+## get libudev from systemd
+COPY --from=systemd /systemd /systemd
+RUN rsync -aHAX --keep-dirlinks  /systemd/. /
+
+## libaio for multipathd
+COPY --from=libaio /libaio /libaio
+RUN rsync -aHAX --keep-dirlinks  /libaio/. /
+
+## json-c for multipathd
+COPY --from=jsonc /jsonc /jsonc
+RUN rsync -aHAX --keep-dirlinks  /jsonc/. /
+
+## urcu for multipathd
+COPY --from=urcu /urcu /urcu
+RUN rsync -aHAX --keep-dirlinks  /urcu/. /
+
+## util-linux for libmount.so
+COPY --from=util-linux /util-linux /util-linux
+RUN rsync -aHAX --keep-dirlinks  /util-linux/. /
+
+## libcap
+COPY --from=libcap /libcap /libcap
+RUN rsync -aHAX --keep-dirlinks  /libcap/. /
+
+COPY --from=sources-downloader /sources/downloads/multipath-tools.tar.gz /sources/
+RUN mkdir -p /multipath-tools
+WORKDIR /sources
+RUN tar -xf multipath-tools.tar.gz && mv multipath-tools-* multipath-tools
+WORKDIR /sources/multipath-tools
+# make libgcc static to avoid needing libgcc_s at runtime
+ENV CC="gcc -static-libgcc"
+RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/multipath-tools && make -s -j${JOBS} install
+
+
+FROM rsync AS parted
+
+## device-mapper from lvm2
+COPY --from=lvm2 /lvm2 /lvm2
+RUN rsync -aHAX --keep-dirlinks  /lvm2/. /
+
+## util-linux for libuuid
+COPY --from=util-linux /util-linux /util-linux
+RUN rsync -aHAX --keep-dirlinks  /util-linux/. /
+
+
+COPY --from=sources-downloader /sources/downloads/parted.tar.xz /sources/
+RUN mkdir -p /parted
+WORKDIR /sources
+RUN tar -xf parted.tar.xz && mv parted-* parted
+WORKDIR /sources/parted
+RUN ./configure --quiet --prefix=/usr --disable-static --enable-shared --without-readline
+RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/parted && make -s -j${JOBS} install
+
+
+## e2fsprogs for mkfs.ext4, e2fsck, tune2fs, etc
+FROM rsync AS e2fsprogs
+
+COPY --from=pkgconfig /pkgconfig /pkgconfig
+RUN rsync -aHAX --keep-dirlinks  /pkgconfig/. /
+COPY --from=util-linux /util-linux /util-linux
+RUN rsync -aHAX --keep-dirlinks  /util-linux/. /
+
+COPY --from=sources-downloader /sources/downloads/e2fsprogs.tar.xz /sources/
+RUN mkdir -p /e2fsprogs
+WORKDIR /sources
+RUN tar -xf e2fsprogs.tar.xz && mv e2fsprogs-* e2fsprogs
+WORKDIR /sources/e2fsprogs
+RUN ./configure --quiet --prefix=/usr --disable-uuidd --disable-libuuid --disable-libblkid --disable-nls --enable-elf-shlibs  --disable-fsck --enable-symlink-install
+RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/e2fsprogs && make -s -j${JOBS} install
+
+
+## Provides mkfs.fat and fsck.fat
+FROM rsync AS dosfstools
+
+COPY --from=sources-downloader /sources/downloads/dosfstools.tar.gz /sources/
+RUN mkdir -p /dosfstools
+WORKDIR /sources
+RUN tar -xf dosfstools.tar.gz && mv dosfstools-* dosfstools
+WORKDIR /sources/dosfstools
+RUN ./configure --quiet --prefix=/usr
+RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/dosfstools && make -s -j${JOBS} install
+
+
+FROM rsync AS gptfdisk
+COPY --from=util-linux /util-linux /util-linux
+RUN rsync -aHAX --keep-dirlinks  /util-linux/. /
+COPY --from=sources-downloader /sources/downloads/gptfdisk.tar.gz /sources/
+## We need libstdc++ and libgcc to build gptfdisk
+COPY --from=gcc-stage0 /sysroot /gcc-stage0
+RUN rsync -aHAX --keep-dirlinks  /gcc-stage0/. /
+RUN mkdir -p /gptfdisk
+WORKDIR /sources
+RUN tar -xf gptfdisk.tar.gz && mv gptfdisk-* gptfdisk
+WORKDIR /sources/gptfdisk
+COPY patches/gptfdisk/001_fix_musl.patch .
+COPY patches/gptfdisk/002_fix_include.patch .
+RUN patch -p1 < 001_fix_musl.patch
+RUN patch -p1 < 002_fix_include.patch
+RUN LDFLAGS="-static-libstdc++ -static-libgcc" make -s -j${JOBS} sgdisk
+RUN install -Dm0755 -t /gptfdisk/usr/bin sgdisk
+RUN install -Dm0755 -t /usr/bin sgdisk
+
+
+FROM rsync AS cryptsetup
+COPY --from=pkgconfig /pkgconfig /pkgconfig
+RUN rsync -aHAX --keep-dirlinks  /pkgconfig/. /
+COPY --from=openssl /openssl /openssl
+RUN rsync -aHAX --keep-dirlinks  /openssl/. /
+COPY --from=lvm2 /lvm2 /lvm2
+RUN rsync -aHAX --keep-dirlinks  /lvm2/. /
+COPY --from=openssl /openssl /openssl
+RUN rsync -aHAX --keep-dirlinks  /openssl/. /
+COPY --from=coreutils /coreutils /coreutils
+RUN rsync -aHAX --keep-dirlinks  /coreutils/. /
+COPY --from=libcap /libcap /libcap
+RUN rsync -aHAX --keep-dirlinks  /libcap/. /
+COPY --from=util-linux /util-linux /util-linux
+RUN rsync -aHAX --keep-dirlinks  /util-linux/. /
+COPY --from=jsonc /jsonc /jsonc
+RUN rsync -aHAX --keep-dirlinks  /jsonc/. /
+COPY --from=bash /bash /bash
+RUN rsync -aHAX --keep-dirlinks  /bash/. /
+COPY --from=readline /readline /readline
+RUN rsync -aHAX --keep-dirlinks  /readline/. /
+
+COPY --from=sources-downloader /sources/downloads/cryptsetup.tar.xz /sources/
+RUN mkdir -p /cryptsetup
+WORKDIR /sources
+RUN tar -xf cryptsetup.tar.xz && mv cryptsetup-* cryptsetup
+WORKDIR /sources/cryptsetup
+RUN ./configure --quiet --prefix=/usr --disable-static --enable-shared --with-crypto-backend=openssl --disable-asciidoc  --disable-nls --disable-ssh-token
+RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/cryptsetup && make -s -j${JOBS} install
+
+
+## growpart from cloud-utils
+# its just a simple pyton script
+FROM stage0 AS growpart
+COPY files/growpart /growpart/usr/bin/growpart
+
 ########################################################
 #
 # Stage 2 - Building the final image
@@ -1753,6 +2046,62 @@ RUN rsync -aHAX --keep-dirlinks  /libseccomp/. /skeleton/
 ## libexpat
 COPY --from=expat /expat /expat
 RUN rsync -aHAX --keep-dirlinks  /expat/. /skeleton/
+
+## libaio for io asynchronous operations
+COPY --from=libaio /libaio /libaio
+RUN rsync -aHAX --keep-dirlinks  /libaio/. /skeleton/
+
+# device-mapper from lvm2
+COPY --from=lvm2 /lvm2 /lvm2
+RUN rsync -aHAX --keep-dirlinks  /lvm2/. /skeleton/
+
+COPY --from=multipath-tools /multipath-tools /multipath-tools
+RUN rsync -aHAX --keep-dirlinks  /multipath-tools/. /skeleton/
+
+## liburcu needed by multipath-tools
+COPY --from=urcu /urcu /urcu
+RUN rsync -aHAX --keep-dirlinks  /urcu/. /skeleton
+
+COPY --from=parted /parted /parted
+RUN rsync -aHAX --keep-dirlinks  /parted/. /skeleton/
+
+COPY --from=e2fsprogs /e2fsprogs /e2fsprogs
+RUN rsync -aHAX --keep-dirlinks  /e2fsprogs/. /skeleton/
+
+COPY --from=dosfstools /dosfstools /dosfstools
+RUN rsync -aHAX --keep-dirlinks  /dosfstools/. /skeleton/
+
+## popt for gptfdisk and probably parted
+COPY --from=popt /popt /popt
+RUN rsync -aHAX --keep-dirlinks  /popt/. /skeleton/
+
+COPY --from=gptfdisk /gptfdisk /gptfdisk
+RUN rsync -aHAX --keep-dirlinks  /gptfdisk/. /skeleton/
+
+## rsync
+COPY --from=rsync /rsync /rsync
+RUN rsync -aHAX --keep-dirlinks  /rsync/. /skeleton/
+
+## cryptsetup for encrypted partitions
+## TODO: do we need to build systemd after cryptsetup to have the systemd-cryptsetup unit?
+COPY --from=cryptsetup /cryptsetup /cryptsetup
+RUN rsync -aHAX --keep-dirlinks  /cryptsetup/. /skeleton
+
+## jsonc needed by libcryptsetup
+COPY --from=jsonc /jsonc /jsonc
+RUN rsync -aHAX --keep-dirlinks  /jsonc/. /skeleton
+
+## growpart
+COPY --from=growpart /growpart /growpart
+RUN rsync -aHAX --keep-dirlinks  /growpart/. /skeleton
+
+## gawk for dracut
+COPY --from=gawk /gawk /gawk
+RUN rsync -aHAX --keep-dirlinks  /gawk/. /skeleton
+
+## xxhash needed by rsync
+COPY --from=xxhash /xxhash /xxhash
+RUN rsync -aHAX --keep-dirlinks  /xxhash/. /skeleton
 
 ## strace, disabled but if we need to debug this is very useful to add
 ## Just uncomment this and you will get it in the final image
@@ -1869,7 +2218,6 @@ RUN mkdir -p /system/oem/
 RUN echo -e "[Match]\nName=en*\n\n[Network]\nDHCP=yes\n" > /etc/systemd/network/20-wired.network
 
 
-
 ### Assemble the image depending on our bootloader
 ## either grub or systemd-boot for trusted boot
 ## To not merge things and have extra software where we dont want it we prepare a base image with all the
@@ -1902,9 +2250,11 @@ COPY --from=stage2-pre-systemd /skeleton /
 
 ## Final image depending on the bootloader
 FROM stage2-${BOOTLOADER} AS stage3
+ARG VERSION
 RUN busybox --install
 ## Workaround to have bash as /bin/sh after busybox overrides it
 RUN rm /bin/sh && ln -s /bin/bash /bin/sh
+RUN echo "VERSION_ID=\"${VERSION}\"" >> /etc/os-release
 RUN systemctl preset-all
 
 ### final image

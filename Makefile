@@ -1,12 +1,15 @@
-MUSL_CROSS_MAKE_VERSION=6f3701d08137496d5aac479e3a3977b5ae993c1f
 IMAGE_NAME=ukairos
-AURORA_IMAGE=quay.io/kairos/auroraboot:v0.9.0
+AURORA_IMAGE ?= quay.io/kairos/auroraboot:v0.9.0
 TARGET ?= default
 JOBS ?= 24
 
 .PHONY: build
 build:
-	docker build --progress=plain --build-arg MUSL_CROSS_MAKE_VERSION=${MUSL_CROSS_MAKE_VERSION} --build-arg JOBS=${JOBS} -t ${IMAGE_NAME} --target ${TARGET} .
+	docker build --progress=plain \
+	--build-arg JOBS=${JOBS} \
+	--build-arg VERSION=$$(git describe --tags --always --dirty) \
+	-t ${IMAGE_NAME} \
+	--target ${TARGET} .
 
 run:
 	docker run -it ${IMAGE_NAME}
@@ -24,4 +27,6 @@ clean:
 # So this is all done to be able to boot from an iso and test it, things will change in the future and init will be called instead
 devel-iso:
 	make build TARGET=devel
-	docker run -v /var/run/docker.sock:/var/run/docker.sock -v ${PWD}/build/:/output ${AURORA_IMAGE} build-iso --output /output/ docker:${IMAGE_NAME}
+	docker run -v /var/run/docker.sock:/var/run/docker.sock \
+	-v ${PWD}/build/:/output \
+	${AURORA_IMAGE} build-iso --output /output/ docker:${IMAGE_NAME}
