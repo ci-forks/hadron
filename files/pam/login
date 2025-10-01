@@ -16,13 +16,6 @@ auth       optional   pam_faildelay.so  delay=3000000
 # (Replaces the `NOLOGINS_FILE' option from login.defs)
 auth       requisite  pam_nologin.so
 
-# SELinux needs to be the first session rule. This ensures that any
-# lingering context has been cleared. Without this it is possible
-# that a module could execute code in the wrong domain.
-# When the module is present, "required" would be sufficient (When SELinux
-# is disabled, this returns success.)
-session [success=ok ignore=ignore module_unknown=ignore default=bad] close
-
 # Sets the loginuid process attribute
 session    required     pam_loginuid.so
 
@@ -44,7 +37,15 @@ session       required   pam_env.so readenv=1
 session       required   pam_env.so readenv=1 envfile=/etc/default/locale
 
 # Standard Un*x authentication.
-@include common-auth
+auth	[success=1 default=ignore]	pam_unix.so nullok
+# here's the fallback if no module succeeds
+auth	requisite			pam_deny.so
+# prime the stack with a positive return value if there isn't one already;
+# this avoids us returning an error just because nothing sets a success code
+# since the modules above will each just jump around
+auth	required			pam_permit.so
+# and here are more per-package modules (the "Additional" block)
+# end of pam-auth-update config
 
 # This allows certain extra groups to be granted to a user
 # based on things like time of day, tty, service, and user.
@@ -71,6 +72,37 @@ session    required   pam_limits.so
 session    optional   pam_keyinit.so force revoke
 
 # Standard Un*x account and session
-@include common-account
-@include common-session
-@include common-password
+# here are the per-package modules (the "Primary" block)
+account	[success=1 new_authtok_reqd=done default=ignore]	pam_unix.so
+# here's the fallback if no module succeeds
+account	requisite			pam_deny.so
+# prime the stack with a positive return value if there isn't one already;
+# this avoids us returning an error just because nothing sets a success code
+# since the modules above will each just jump around
+account	required			pam_permit.so
+# and here are more per-package modules (the "Additional" block)
+# end of pam-auth-update config
+session	[default=1]			pam_permit.so
+# here's the fallback if no module succeeds
+session	requisite			pam_deny.so
+# prime the stack with a positive return value if there isn't one already;
+# this avoids us returning an error just because nothing sets a success code
+# since the modules above will each just jump around
+session	required			pam_permit.so
+# The pam_umask module will set the umask according to the system default in
+# /etc/login.defs and user settings, solving the problem of different
+# umask settings with different shells, display managers, remote sessions etc.
+# See "man pam_umask".
+session optional			pam_umask.so
+# and here are more per-package modules (the "Additional" block)
+session	required	pam_unix.so
+password	[success=1 default=ignore]	pam_unix.so obscure yescrypt
+# here's the fallback if no module succeeds
+password	requisite			pam_deny.so
+# prime the stack with a positive return value if there isn't one already;
+# this avoids us returning an error just because nothing sets a success code
+# since the modules above will each just jump around
+password	required			pam_permit.so
+# and here are more per-package modules (the "Additional" block)
+# end of pam-auth-update config
+
