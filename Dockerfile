@@ -313,6 +313,12 @@ ARG CRYPTSETUP_VERSION=2.8.1
 ENV CRYPTSETUP_VERSION=${CRYPTSETUP_VERSION}
 RUN cd /sources/downloads && wget https://cdn.kernel.org/pub/linux/utils/cryptsetup/v${CRYPTSETUP_VERSION%.*}/cryptsetup-${CRYPTSETUP_VERSION}.tar.xz && mv cryptsetup-${CRYPTSETUP_VERSION}.tar.xz cryptsetup.tar.xz
 
+
+## grub
+ARG GRUB_VERSION=2.12
+ENV GRUB_VERSION=${GRUB_VERSION}
+RUN cd /sources/downloads && wget https://mirrors.edge.kernel.org/gnu/grub/grub-${GRUB_VERSION}.tar.xz && mv grub-${GRUB_VERSION}.tar.xz grub.tar.xz
+
 FROM stage0 AS skeleton
 
 COPY ./setup_rootfs.sh ./setup_rootfs.sh
@@ -1951,6 +1957,51 @@ RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/cryptsetup && make -
 FROM stage0 AS growpart
 COPY files/growpart /growpart/usr/bin/growpart
 
+
+## grub for bootloader installation
+FROM python-build AS grub-base
+COPY --from=pkgconfig /pkgconfig /pkgconfig
+RUN rsync -aHAX --keep-dirlinks  /pkgconfig/. /
+COPY --from=openssl /openssl /openssl
+RUN rsync -aHAX --keep-dirlinks  /openssl/. /
+COPY --from=bash /bash /bash
+RUN rsync -aHAX --keep-dirlinks  /bash/. /
+COPY --from=readline /readline /readline
+RUN rsync -aHAX --keep-dirlinks  /readline/. /
+COPY --from=util-linux /util-linux /util-linux
+RUN rsync -aHAX --keep-dirlinks  /util-linux/. /
+COPY --from=bison /bison /bison
+RUN rsync -aHAX --keep-dirlinks  /bison/. /
+COPY --from=flex /flex /flex
+RUN rsync -aHAX --keep-dirlinks  /flex/. /
+COPY --from=xz /xz /xz
+RUN rsync -aHAX --keep-dirlinks  /xz/. /
+COPY --from=m4 /m4 /m4
+RUN rsync -aHAX --keep-dirlinks  /m4/. /
+COPY --from=lvm2 /lvm2 /lvm2
+RUN rsync -aHAX --keep-dirlinks  /lvm2/. /
+COPY --from=gawk /gawk /gawk
+RUN rsync -aHAX --keep-dirlinks  /gawk/. /
+
+COPY --from=sources-downloader /sources/downloads/grub.tar.xz /sources/
+WORKDIR /sources
+RUN tar -xf grub.tar.xz && mv grub-* grub
+WORKDIR /sources/grub
+RUN echo depends bli part_gpt > grub-core/extra_deps.lst
+
+FROM grub-base AS grub-efi
+WORKDIR /sources/grub
+RUN mkdir -p /grub-efi
+RUN ./configure --quiet --prefix=/usr --with-platform=efi --disable-efiemu --disable-werror
+RUN make -s -j${JOBS} && make -s -j${JOBS} install-strip DESTDIR=/grub-efi
+
+FROM grub-base AS grub-bios
+WORKDIR /sources/grub
+RUN mkdir -p /grub-bios
+RUN ./configure --quiet --prefix=/usr --with-platform=pc --disable-werror
+RUN make -s -j${JOBS} && make -s -j${JOBS} install-strip DESTDIR=/grub-bios
+
+
 ########################################################
 #
 # Stage 2 - Building the final image
@@ -2095,10 +2146,6 @@ RUN rsync -aHAX --keep-dirlinks  /jsonc/. /skeleton
 COPY --from=growpart /growpart /growpart
 RUN rsync -aHAX --keep-dirlinks  /growpart/. /skeleton
 
-## gawk for dracut
-COPY --from=gawk /gawk /gawk
-RUN rsync -aHAX --keep-dirlinks  /gawk/. /skeleton
-
 ## xxhash needed by rsync
 COPY --from=xxhash /xxhash /xxhash
 RUN rsync -aHAX --keep-dirlinks  /xxhash/. /skeleton
@@ -2147,6 +2194,17 @@ RUN rsync -aHAX --keep-dirlinks  /xz/. /skeleton
 ## lz4, dracut depends on this if mixed with systemd
 COPY --from=lz4 /lz4 /lz4
 RUN rsync -aHAX --keep-dirlinks  /lz4/. /skeleton
+
+## gawk for dracut
+COPY --from=gawk /gawk /gawk
+RUN rsync -aHAX --keep-dirlinks  /gawk/. /skeleton
+
+## grub
+COPY --from=grub-efi /grub-efi /grub-efi
+RUN rsync -aHAX --keep-dirlinks  /grub-efi/. /skeleton
+
+COPY --from=grub-bios /grub-bios /grub-bios
+RUN rsync -aHAX --keep-dirlinks  /grub-bios/. /skeleton
 
 ## Dracut
 COPY --from=dracut /dracut /dracut
