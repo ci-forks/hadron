@@ -319,6 +319,18 @@ ARG GRUB_VERSION=2.12
 ENV GRUB_VERSION=${GRUB_VERSION}
 RUN cd /sources/downloads && wget https://mirrors.edge.kernel.org/gnu/grub/grub-${GRUB_VERSION}.tar.xz && mv grub-${GRUB_VERSION}.tar.xz grub.tar.xz
 
+
+## PAM
+ARG PAM_VERSION=1.7.1
+ENV PAM_VERSION=${PAM_VERSION}
+
+RUN cd /sources/downloads && wget https://github.com/linux-pam/linux-pam/releases/download/v${PAM_VERSION}/Linux-PAM-${PAM_VERSION}.tar.xz && mv Linux-PAM-${PAM_VERSION}.tar.xz pam.tar.xz
+
+# shadow
+ARG SHADOW_VERSION=4.18.0
+ENV SHADOW_VERSION=${SHADOW_VERSION}
+RUN cd /sources/downloads && wget https://github.com/shadow-maint/shadow/releases/download/${SHADOW_VERSION}/shadow-${SHADOW_VERSION}.tar.xz && mv shadow-${SHADOW_VERSION}.tar.xz shadow.tar.xz
+
 FROM stage0 AS skeleton
 
 COPY ./setup_rootfs.sh ./setup_rootfs.sh
@@ -1181,6 +1193,31 @@ RUN meson setup buildDir --prefix=/usr --buildtype=release
 RUN DESTDIR=/dbus ninja -C buildDir install
 
 
+# first pam build so we can build systemd against it
+FROM python-build AS pam-base
+
+COPY --from=pkgconfig /pkgconfig /pkgconfig
+RUN rsync -aHAX --keep-dirlinks  /pkgconfig/. /
+COPY --from=openssl /openssl /openssl
+RUN rsync -aHAX --keep-dirlinks  /openssl/. /
+COPY --from=readline /readline /readline
+RUN rsync -aHAX --keep-dirlinks  /readline/. /
+COPY --from=bash /bash /bash
+RUN rsync -aHAX --keep-dirlinks  /bash/. /
+COPY --from=util-linux /util-linux /util-linux
+RUN rsync -aHAX --keep-dirlinks  /util-linux/. /
+COPY --from=libcap /libcap /libcap
+RUN rsync -aHAX --keep-dirlinks  /libcap/. /
+COPY --from=sources-downloader /sources/downloads/pam.tar.xz /sources/
+RUN mkdir -p /pam
+WORKDIR /sources
+RUN tar -xf pam.tar.xz && mv Linux-PAM-* linux-pam
+WORKDIR /sources/linux-pam
+RUN pip3 install meson ninja
+RUN meson setup buildDir --prefix=/usr --buildtype=release
+RUN DESTDIR=/pam ninja -C buildDir install
+COPY files/pam/* /pam/etc/pam.d/
+
 ## systemd
 FROM rsync AS systemd
 
@@ -1223,15 +1260,19 @@ RUN rsync -aHAX --keep-dirlinks  /libseccomp/. /
 COPY --from=dbus /dbus /dbus
 RUN rsync -aHAX --keep-dirlinks  /dbus/. /
 
+COPY --from=pam-base /pam /pam
+RUN rsync -aHAX --keep-dirlinks  /pam/. /
+
 COPY --from=sources-downloader /sources/downloads/systemd /sources/systemd
 ENV CFLAGS="-D __UAPI_DEF_ETHHDR=0 -D _LARGEFILE64_SOURCE"
 RUN mkdir -p /systemd
 RUN python3 -m pip install meson ninja jinja2
 WORKDIR /sources/systemd
+## TODO: disable sysusers
 RUN /usr/bin/meson setup buildDir \
       --prefix=/usr           \
       --buildtype=release     \
-      -D dbus=true \
+      -D dbus=true -D pam=enabled -D pamconfdir=/etc/pam.d \
       -D seccomp=true         \
       -D default-dnssec=no    \
       -D firstboot=false      \
@@ -1666,6 +1707,7 @@ RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/xz && make -s -j${JO
 
 ## kmod so modprobe, insmod, lsmod, modinfo, rmmod are available
 FROM python-build AS kmod
+ARG JOBS
 ## we need liblzma from xz to build
 COPY --from=xz /xz /xz
 RUN rsync -aHAX --keep-dirlinks  /xz/. /
@@ -2002,6 +2044,53 @@ RUN ./configure --quiet --prefix=/usr --with-platform=pc --disable-werror
 RUN make -s -j${JOBS} && make -s -j${JOBS} install-strip DESTDIR=/grub-bios
 
 
+## final build of pam with systemd support
+FROM python-build AS pam-systemd
+
+COPY --from=pkgconfig /pkgconfig /pkgconfig
+RUN rsync -aHAX --keep-dirlinks  /pkgconfig/. /
+COPY --from=openssl /openssl /openssl
+RUN rsync -aHAX --keep-dirlinks  /openssl/. /
+COPY --from=readline /readline /readline
+RUN rsync -aHAX --keep-dirlinks  /readline/. /
+COPY --from=bash /bash /bash
+RUN rsync -aHAX --keep-dirlinks  /bash/. /
+COPY --from=util-linux /util-linux /util-linux
+RUN rsync -aHAX --keep-dirlinks  /util-linux/. /
+COPY --from=libcap /libcap /libcap
+RUN rsync -aHAX --keep-dirlinks  /libcap/. /
+COPY --from=systemd /systemd /systemd
+RUN rsync -aHAX --keep-dirlinks  /systemd/. /
+COPY --from=sources-downloader /sources/downloads/pam.tar.xz /sources/
+RUN mkdir -p /pam
+WORKDIR /sources
+RUN tar -xf pam.tar.xz && mv Linux-PAM-* linux-pam
+WORKDIR /sources/linux-pam
+RUN pip3 install meson ninja
+RUN meson setup buildDir --prefix=/usr --buildtype=release
+RUN DESTDIR=/pam ninja -C buildDir install
+COPY files/pam/* /pam/etc/pam.d/
+
+# install shadow now that we have pam to get a proper login binary
+
+FROM rsync AS shadow
+COPY --from=pkgconfig /pkgconfig /pkgconfig
+RUN rsync -aHAX --keep-dirlinks  /pkgconfig/. /
+COPY --from=readline /readline /readline
+RUN rsync -aHAX --keep-dirlinks  /readline/. /
+COPY --from=bash /bash /bash
+RUN rsync -aHAX --keep-dirlinks  /bash/. /
+COPY --from=libcap /libcap /libcap
+RUN rsync -aHAX --keep-dirlinks  /libcap/. /
+COPY --from=pam-systemd /pam /pam
+RUN rsync -aHAX --keep-dirlinks  /pam/. /
+COPY --from=sources-downloader /sources/downloads/shadow.tar.xz /sources/
+RUN mkdir -p /shadow
+WORKDIR /sources
+RUN tar -xf shadow.tar.xz && mv shadow-* shadow
+WORKDIR /sources/shadow
+RUN ./configure --quiet --prefix=/usr --sysconfdir=/etc --without-libbsd --disable-static --with-bcrypt --with-yescrypt
+RUN make -s -j${JOBS} && make -s -j${JOBS} exec_prefix=/usr pamddir= install DESTDIR=/shadow && make exec_prefix=/usr pamddir= -s -j${JOBS} install
 ########################################################
 #
 # Stage 2 - Building the final image
@@ -2161,6 +2250,12 @@ RUN rsync -aHAX --keep-dirlinks  /kbd/. /skeleton
 
 COPY --from=iptables /iptables /iptables
 RUN rsync -aHAX --keep-dirlinks  /iptables/. /skeleton
+
+COPY --from=pam-systemd /pam /pam
+RUN rsync -aHAX --keep-dirlinks  /pam/. /skeleton
+
+COPY --from=shadow /shadow /shadow
+RUN rsync -aHAX --keep-dirlinks  /shadow/. /skeleton
 
 # kernel and modules
 COPY --from=kernel /kernel/vmlinuz /skeleton/boot/vmlinuz

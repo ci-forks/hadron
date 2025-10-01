@@ -37,7 +37,7 @@ ln -sfv ../run/lock var/lock # var/lock -> run/lock
 ln -svf proc/mounts etc/mtab
 
 cat > etc/passwd << "EOF"
-root::0:0:root:/root:/bin/bash
+root:x:0:0:root:/root:/bin/bash
 bin:x:1:1:bin:/dev/null:/usr/bin/false
 daemon:x:6:6:Daemon User:/dev/null:/usr/bin/false
 messagebus:x:18:18:D-Bus Message Daemon User:/run/dbus:/usr/bin/false
