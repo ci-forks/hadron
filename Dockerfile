@@ -337,6 +337,13 @@ ARG CLOUD_UTILS_VERSION=0.33
 ENV CLOUD_UTILS_VERSION=${CLOUD_UTILS_VERSION}
 RUN cd /sources/downloads && wget https://github.com/canonical/cloud-utils/archive/refs/tags/${CLOUD_UTILS_VERSION}.tar.gz && mv ${CLOUD_UTILS_VERSION}.tar.gz cloud-utils.tar.gz
 
+
+# alpine aports repo for patches to build under musl
+ARG APORTS_VERSION=3.22.1
+ENV APORTS_VERSION=${APORTS_VERSION}
+
+RUN cd /sources/downloads && wget https://gitlab.alpinelinux.org/alpine/aports/-/archive/v${APORTS_VERSION}/aports-v${APORTS_VERSION}.tar.gz && mv aports-v${APORTS_VERSION}.tar.gz aports.tar.gz
+
 FROM stage0 AS skeleton
 
 COPY ./setup_rootfs.sh ./setup_rootfs.sh
@@ -642,16 +649,24 @@ ARG ATTR_VERSION=2.5.2
 ENV ATTR_VERSION=${ATTR_VERSION}
 
 COPY --from=sources-downloader /sources/downloads/attr-${ATTR_VERSION}.tar.gz /sources/
-COPY ./patches/attr/basename.patch /sources/
+COPY --from=sources-downloader /sources/downloads/aports.tar.gz /sources/patches/
 
-RUN mkdir -p /sources && cd /sources && tar -xf attr-${ATTR_VERSION}.tar.gz && mv attr-${ATTR_VERSION} attr && \
-    cd attr && mkdir -p /attr && \
-    patch -p1 < /sources/basename.patch && \
-    ./configure --quiet ${COMMON_ARGS} --disable-dependency-tracking --prefix=/usr --sysconfdir=/etc \
+RUN mkdir -p /attr
+
+# extract the aport patch to apply to attr
+WORKDIR /sources/patches
+RUN tar -xf aports.tar.gz && mv aports-* aport
+WORKDIR /sources
+RUN tar -xf attr-${ATTR_VERSION}.tar.gz && mv attr-${ATTR_VERSION} attr
+WORKDIR /sources/attr
+RUN patch -p1 < /sources/patches/aport/main/attr/attr-basename.patch
+RUN ./configure --quiet ${COMMON_ARGS} --disable-dependency-tracking --prefix=/usr --sysconfdir=/etc \
     --mandir=/usr/share/man \
     --localstatedir=/var \
-    --disable-nls && make -s -j${JOBS} DESTDIR=/attr && \
-    make -s -j${JOBS} DESTDIR=/attr install && make -s -j${JOBS} install
+    --disable-nls
+RUN make -s -j${JOBS} DESTDIR=/attr
+RUN make -s -j${JOBS} DESTDIR=/attr install
+RUN make -s -j${JOBS} install
 
 ## acl
 FROM attr AS acl
@@ -1798,14 +1813,18 @@ RUN rsync -aHAX --keep-dirlinks  /libaio/. /
 COPY --from=readline /readline /readline
 RUN rsync -aHAX --keep-dirlinks  /readline/. /
 COPY --from=sources-downloader /sources/downloads/lvm2.tgz /sources/
+COPY --from=sources-downloader /sources/downloads/aports.tar.gz /sources/patches/
 
 RUN mkdir -p /lvm2
+
+# extract the aport patch to apply to lvm2
+WORKDIR /sources/patches
+RUN tar -xf aports.tar.gz && mv aports-* aport
 WORKDIR /sources
 RUN tar -xf lvm2.tgz && mv LVM2* lvm2
 WORKDIR /sources/lvm2
 # patch it
-COPY patches/lvm2/001_fix_fopen.patch .
-RUN patch -p1 < 001_fix_fopen.patch
+RUN patch -p1 < /sources/patches/aport/main/lvm2/fix-stdio-usage.patch
 RUN ./configure --prefix=/usr
 RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/lvm2 && make -s -j${JOBS} install
 
@@ -1953,18 +1972,22 @@ RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/dosfstools && make -
 FROM rsync AS gptfdisk
 COPY --from=util-linux /util-linux /util-linux
 RUN rsync -aHAX --keep-dirlinks  /util-linux/. /
-COPY --from=sources-downloader /sources/downloads/gptfdisk.tar.gz /sources/
 ## We need libstdc++ and libgcc to build gptfdisk
 COPY --from=gcc-stage0 /sysroot /gcc-stage0
 RUN rsync -aHAX --keep-dirlinks  /gcc-stage0/. /
+
+COPY --from=sources-downloader /sources/downloads/gptfdisk.tar.gz /sources/
+COPY --from=sources-downloader /sources/downloads/aports.tar.gz /sources/patches/
+
 RUN mkdir -p /gptfdisk
+
+WORKDIR /sources/patches
+RUN tar -xf aports.tar.gz && mv aports-* aport
 WORKDIR /sources
 RUN tar -xf gptfdisk.tar.gz && mv gptfdisk-* gptfdisk
 WORKDIR /sources/gptfdisk
-COPY patches/gptfdisk/001_fix_musl.patch .
-COPY patches/gptfdisk/002_fix_include.patch .
-RUN patch -p1 < 001_fix_musl.patch
-RUN patch -p1 < 002_fix_include.patch
+RUN patch -p1 < /sources/patches/aport/main/gptfdisk/fix-musl.patch
+RUN patch -p1 < /sources/patches/aport/main/gptfdisk/fix-wrong-include.patch
 RUN LDFLAGS="-static-libstdc++ -static-libgcc" make -s -j${JOBS} sgdisk
 RUN install -Dm0755 -t /gptfdisk/usr/bin sgdisk
 RUN install -Dm0755 -t /usr/bin sgdisk
@@ -2272,9 +2295,15 @@ RUN rsync -aHAX --keep-dirlinks  /shadow/. /skeleton
 COPY --from=kernel /kernel/vmlinuz /skeleton/boot/vmlinuz
 COPY --from=kernel /modules/lib/modules/ /skeleton/lib/modules
 
-## TODO: provide ldconfig and ldd, both scripts for dracut
-COPY files/ldconfig /skeleton/sbin/ldconfig
+## Add custom ldd pointing to our musl
 COPY files/ldd /skeleton/usr/bin/ldd
+
+## Copy ldconfig from alpine musl
+COPY --from=sources-downloader /sources/downloads/aports.tar.gz /
+RUN tar xf /aports.tar.gz && mv aports-* aports
+RUN cp /aports/main/musl/ldconfig /skeleton/usr/bin/ldconfig
+
+# make sure they are both executable
 RUN chmod 755 /skeleton/sbin/ldconfig /skeleton/usr/bin/ldd
 
 ## Cleanup
