@@ -35,8 +35,11 @@ ENV TARGET=${BUILD_ARCH}-${VENDOR}-linux-musl
 ENV BUILD=${BUILD_ARCH}-pc-linux-musl
 
 ### This stage is used to download the sources for the packages
-### This is needed to download packages via https when we don't still have wget/curl with ssl support
-FROM stage0 AS sources-downloader
+### This runs in parallel with stage0 to improve build time since it's network-bound while stage0 is CPU-bound
+FROM alpine AS sources-downloader
+
+# Install packages needed for downloading and patching sources
+RUN apk update && apk add wget git patch tar
 
 ARG CURL_VERSION=8.5.0
 ENV CURL_VERSION=${CURL_VERSION}
@@ -94,7 +97,6 @@ ENV SYSTEMD_VERSION=${SYSTEMD_VERSION}
 RUN cd /sources/downloads && wget https://github.com/systemd/systemd/archive/refs/tags/v${SYSTEMD_VERSION}.tar.gz -O systemd-${SYSTEMD_VERSION}.tar.gz
 
 ## systemd patches
-RUN apk add git patch
 
 ARG OE_CORE_VERSION=30140cb9354fa535f68fab58e73b76f0cca342e4
 ENV OE_CORE_VERSION=${OE_CORE_VERSION}
