@@ -39,7 +39,7 @@ ENV BUILD=${BUILD_ARCH}-pc-linux-musl
 FROM alpine AS sources-downloader
 
 # Install packages needed for downloading and patching sources
-RUN apk update && apk add wget git patch tar
+RUN apk update && apk add wget git patch tar bash coreutils findutils
 
 ARG CURL_VERSION=8.5.0
 ENV CURL_VERSION=${CURL_VERSION}
