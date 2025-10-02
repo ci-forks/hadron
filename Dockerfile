@@ -5,8 +5,9 @@ ARG BOOTLOADER=grub
 ARG VERSION=0.0.1
 ARG JOBS=24
 
+ARG ALPINE_VERSION=3.22.1
 
-FROM alpine AS stage0
+FROM alpine:${ALPINE_VERSION} AS stage0
 
 ########################################################
 #
@@ -492,7 +493,7 @@ RUN <<EOT bash
 EOT
 
 ## This is a hack to avoid to need the kernel headers to compile things like busybox
-FROM alpine AS alpine-hack
+FROM alpine:${ALPINE_VERSION} AS alpine-hack
 RUN apk add linux-headers
 
 ########################################################
@@ -2346,7 +2347,7 @@ COPY --from=dracut /dracut /dracut
 RUN rsync -aHAX --keep-dirlinks  /dracut/. /skeleton
 
 ## Immucore for initramfs
-FROM alpine AS immucore
+FROM alpine:${ALPINE_VERSION} AS immucore
 RUN wget https://github.com/kairos-io/immucore/releases/download/v0.11.3/immucore-v0.11.3-linux-amd64.tar.gz
 RUN tar xf immucore-v0.11.3-linux-amd64.tar.gz
 RUN mv immucore /immucore
@@ -2355,7 +2356,7 @@ RUN apk add --no-cache upx
 RUN upx /immucore
 
 # Agent
-FROM alpine AS kairos-agent
+FROM alpine:${ALPINE_VERSION} AS kairos-agent
 RUN wget https://github.com/kairos-io/kairos-agent/releases/download/v2.25.0/kairos-agent-v2.25.0-linux-amd64.tar.gz
 RUN tar xf kairos-agent-v2.25.0-linux-amd64.tar.gz
 RUN mv kairos-agent /kairos-agent
@@ -2364,7 +2365,7 @@ RUN apk add --no-cache upx
 RUN upx /kairos-agent
 
 # Build the initramfs
-FROM alpine AS initramfs-builder
+FROM alpine:${ALPINE_VERSION} AS initramfs-builder
 RUN apk add --no-cache cpio
 COPY --from=busybox /sysroot /initramfs
 # Copy groups file
@@ -2417,7 +2418,7 @@ RUN echo -e "[Match]\nName=en*\n\n[Network]\nDHCP=yes\n" > /etc/systemd/network/
 ## needed software and then we merge it with the bootloader specific stuff
 
 ## This workarounds over the COPY not being able to run over the same dir
-FROM alpine AS stage2-pre-grub
+FROM alpine:${ALPINE_VERSION} AS stage2-pre-grub
 RUN apk add rsync
 COPY --from=stage2-merge /skeleton /stage2-merge
 RUN rsync -aHAX --keep-dirlinks  /stage2-merge/. /skeleton/
@@ -2425,7 +2426,7 @@ COPY --from=dracut-final /skeleton /dracut-final
 RUN rsync -aHAX --keep-dirlinks  /dracut-final/. /skeleton/
 
 
-FROM alpine AS stage2-pre-systemd
+FROM alpine:${ALPINE_VERSION} AS stage2-pre-systemd
 RUN apk add rsync
 COPY --from=stage2-merge /skeleton /stage2-merge
 RUN rsync -aHAX --keep-dirlinks  /stage2-merge/. /skeleton/
