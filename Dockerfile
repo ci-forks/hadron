@@ -1729,7 +1729,6 @@ RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/xz && make -s -j${JO
 
 ## kmod so modprobe, insmod, lsmod, modinfo, rmmod are available
 FROM python-build AS kmod
-ARG JOBS
 ## we need liblzma from xz to build
 COPY --from=xz /xz /xz
 RUN rsync -aHAX --keep-dirlinks  /xz/. /
@@ -1749,7 +1748,7 @@ RUN tar -xf kmod.tar.gz && mv kmod-* kmod
 WORKDIR /sources/kmod
 RUN pip3 install meson ninja
 RUN meson setup buildDir --prefix=/usr --buildtype=minsize --optimization 3 -Dmanpages=false
-RUN DESTDIR=/kmod ninja -C buildDir -j ${JOBS} install && ninja -C buildDir -j ${JOBS} install
+RUN DESTDIR=/kmod ninja -C buildDir install && ninja -C buildDir install
 
 
 FROM rsync AS dracut
