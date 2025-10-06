@@ -1,0 +1,22 @@
+#cloud-config
+
+install:
+  auto: true
+  reboot: true
+  device: /dev/vda
+  grub_options:
+    extra_cmdline: "rd.immucore.debug foobarzz"
+  bundles:
+    - rootfs_path: /var/lib/extensions/kubo
+      targets:
+        - container://quay.io/kairos/ci-temp-images:bundles-test
+
+stages:
+  initramfs:
+    - name: "Set user and password"
+      users:
+        kairos:
+          passwd: "kairos"
+          groups:
+            - "admin"
+      hostname: kairos-{{ trunc 4 .Random }}

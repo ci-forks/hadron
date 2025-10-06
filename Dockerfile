@@ -443,12 +443,6 @@ ARG DIFFUTILS_VERSION=3.9
 ENV DIFFUTILS_VERSION=${DIFFUTILS_VERSION}
 RUN cd /sources/downloads && wget -q http://ftpmirror.gnu.org/diffutils/diffutils-${DIFFUTILS_VERSION}.tar.xz
 
-## immucore
-RUN cd /sources/downloads && wget -q https://github.com/kairos-io/immucore/releases/download/v0.11.3/immucore-v0.11.3-linux-amd64.tar.gz
-
-## kairos-agent
-RUN cd /sources/downloads && wget -q https://github.com/kairos-io/kairos-agent/releases/download/v2.25.0/kairos-agent-v2.25.0-linux-amd64.tar.gz
-
 ## sudo
 ARG SUDO_VERSION=1.9.17p2
 ENV SUDO_VERSION=${SUDO_VERSION}
@@ -743,10 +737,14 @@ ARG ZSTD_VERSION=1.5.7
 ENV ZSTD_VERSION=${ZSTD_VERSION}
 
 COPY --from=sources-downloader /sources/downloads/zstd-${ZSTD_VERSION}.tar.gz /sources/
-
-RUN mkdir -p /sources && cd /sources && tar -xf zstd-${ZSTD_VERSION}.tar.gz && mv zstd-${ZSTD_VERSION} zstd && \
-    cd zstd && mkdir -p /zstd && CC=gcc make -s -j${JOBS} DESTDIR=/zstd && \
-    make -s -j${JOBS} DESTDIR=/zstd install && make -s -j${JOBS} install
+RUN mkdir -p /zstd
+WORKDIR /sources
+RUN tar -xf zstd-${ZSTD_VERSION}.tar.gz && mv zstd-${ZSTD_VERSION} zstd
+WORKDIR /sources/zstd
+ENV CC=gcc
+RUN make -s -j${JOBS} DESTDIR=/zstd prefix=/usr
+RUN make -s -j${JOBS} DESTDIR=/zstd prefix=/usr install
+RUN make -s -j${JOBS} prefix=/usr install
 
 ## lz4
 FROM zstd AS lz4
@@ -818,10 +816,14 @@ ARG ZLIB_VERSION=1.3.1
 ENV ZLIB_VERSION=${ZLIB_VERSION}
 
 COPY --from=sources-downloader /sources/downloads/zlib-${ZLIB_VERSION}.tar.gz /sources/
-
-RUN mkdir -p /sources && cd /sources && tar -xf zlib-${ZLIB_VERSION}.tar.gz && mv zlib-${ZLIB_VERSION} zlib && \
-    cd zlib && mkdir -p /zlib && ./configure --shared && make -s -j${JOBS} DESTDIR=/zlib && \
-    make -s -j${JOBS} DESTDIR=/zlib install && make -s -j${JOBS} install
+RUN mkdir -p /zlib
+WORKDIR /sources
+RUN tar -xf zlib-${ZLIB_VERSION}.tar.gz && mv zlib-${ZLIB_VERSION} zlib
+WORKDIR /sources/zlib
+RUN ./configure --shared --prefix=/usr
+RUN make -s -j${JOBS} DESTDIR=/zlib
+RUN make -s -j${JOBS} DESTDIR=/zlib install
+RUN make -s -j${JOBS} install
 
 ## gawk
 
@@ -1219,6 +1221,10 @@ RUN mkdir -p /sources && cd /sources && tar -xf curl-${CURL_VERSION}.tar.gz && m
     make -s -j${JOBS} DESTDIR=/curl install && make -s -j${JOBS} install
 
 ## openssh
+## TODO: if we want a separate user for sshd we can drop a file onto /usr/lib/sysusers.d/sshd.conf
+## with:
+# u sshd - "sshd priv user"
+## And enable --with-privsep-user=sshd during configure
 FROM rsync AS openssh
 
 ARG OPENSSH_VERSION=9.9p1
@@ -1232,19 +1238,32 @@ RUN rsync -aHAX --keep-dirlinks  /zlib/. /
 
 COPY --from=sources-downloader /sources/downloads/openssh-${OPENSSH_VERSION}.tar.gz /sources/
 
-RUN mkdir -p /sources && cd /sources && tar -xf openssh-${OPENSSH_VERSION}.tar.gz && mv openssh-${OPENSSH_VERSION} openssh && \
-    cd openssh && mkdir -p /openssh && ./configure ${COMMON_CONFIGURE_ARGS} \
+RUN mkdir -p /openssh
+WORKDIR /sources
+RUN tar -xf openssh-${OPENSSH_VERSION}.tar.gz && mv openssh-${OPENSSH_VERSION} openssh
+
+WORKDIR /sources/openssh
+RUN ./configure ${COMMON_CONFIGURE_ARGS} \
     --prefix=/usr \
     --sysconfdir=/etc/ssh \
     --libexecdir=/usr/lib/ssh \
     --datadir=/usr/share/openssh \
     --with-privsep-path=/var/empty \
-    --with-privsep-user=sshd \
+    --with-privsep-user=nobody \
     --with-md5-passwords \
     --with-ssl-engine \
-    --disable-strip && \
-    make -s -j${JOBS} && \
-    make -s -j${JOBS} DESTDIR=/openssh install && make -s -j${JOBS} install
+    --disable-strip
+RUN make -s -j${JOBS}
+RUN make -s -j${JOBS} DESTDIR=/openssh install
+RUN make -s -j${JOBS} install
+## Provide the proper files and dirs for sshd to run properly with systemd
+COPY files/systemd/sshd.service /openssh/usr/lib/systemd/system/sshd.service
+COPY files/systemd/sshd.socket /openssh/usr/lib/etc/systemd/system/sshd.socket
+COPY files/systemd/sshkeygen.service /openssh/usr/lib/systemd/system/sshkeygen.service
+# Add sshd_config.d dir for droping extra configs
+RUN mkdir -p /openssh/etc/ssh/sshd_config.d
+RUN echo "# Include drop-in configs from sshd_config.d directory" >> /openssh/etc/ssh/sshd_config
+RUN echo "Include sshd_config.d/*.conf" >> /openssh/etc/ssh/sshd_config
 
 ## python
 FROM rsync AS python-build
@@ -2026,7 +2045,7 @@ RUN cmake ../jsonc -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_POLICY_VERSION_MINIMUM=3.
 RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/jsonc && make -s -j${JOBS} install
 
 # pax-utils provives scanelf which lddconfig needs
-FROM python-build as pax-utils
+FROM python-build AS pax-utils
 
 COPY --from=sources-downloader /sources/downloads/pax-utils.tar.xz /sources/
 RUN mkdir -p /pax-utils
@@ -2299,6 +2318,9 @@ RUN pip3 install meson ninja
 RUN meson setup buildDir --prefix=/usr --buildtype=release
 RUN DESTDIR=/pam ninja -C buildDir install
 COPY files/pam/* /pam/etc/pam.d/
+## We are using the pam_shells.so module in a few places, so we need a proper /etc/shells file
+COPY files/shells /pam/etc/shells
+RUN chmod 644 /pam/etc/shells
 
 # install shadow now that we have pam to get a proper login binary
 FROM rsync AS shadow
@@ -2525,16 +2547,13 @@ RUN rsync -aHAX --keep-dirlinks  /pax-utils/. /skeleton
 COPY --from=kernel /kernel/vmlinuz /skeleton/boot/vmlinuz
 COPY --from=kernel /modules/lib/modules/ /skeleton/lib/modules
 
-## Add custom ldd pointing to our musl
-COPY files/ldd /skeleton/usr/bin/ldd
-
 ## Copy ldconfig from alpine musl
 COPY --from=sources-downloader /sources/downloads/aports.tar.gz /
 RUN tar xf /aports.tar.gz && mv aports-* aports
 RUN cp /aports/main/musl/ldconfig /skeleton/usr/bin/ldconfig
 
 # make sure they are both executable
-RUN chmod 755 /skeleton/sbin/ldconfig /skeleton/usr/bin/ldd
+RUN chmod 755 /skeleton/sbin/ldconfig
 
 COPY --from=sudo /sudo /sudo
 RUN rsync -aHAX --keep-dirlinks  /sudo/. /skeleton
@@ -2577,72 +2596,6 @@ RUN rsync -aHAX --keep-dirlinks  /grub-bios/. /skeleton
 ## Dracut
 COPY --from=dracut /dracut /dracut
 RUN rsync -aHAX --keep-dirlinks  /dracut/. /skeleton
-
-## Immucore for initramfs
-FROM alpine:${ALPINE_VERSION} AS immucore
-COPY --from=sources-downloader /sources/downloads/immucore-v0.11.3-linux-amd64.tar.gz .
-RUN tar xf immucore-v0.11.3-linux-amd64.tar.gz
-RUN mv immucore /immucore
-RUN chmod +x /immucore
-RUN apk add --no-cache upx
-RUN upx /immucore
-
-# Agent
-FROM alpine:${ALPINE_VERSION} AS kairos-agent
-COPY --from=sources-downloader /sources/downloads/kairos-agent-v2.25.0-linux-amd64.tar.gz .
-RUN tar xf kairos-agent-v2.25.0-linux-amd64.tar.gz
-RUN mv kairos-agent /kairos-agent
-RUN chmod +x /kairos-agent
-RUN apk add --no-cache upx
-RUN upx /kairos-agent
-
-# Build the initramfs
-FROM alpine:${ALPINE_VERSION} AS initramfs-builder
-RUN apk add --no-cache cpio
-COPY --from=busybox /sysroot /initramfs
-# Copy groups file
-COPY --from=stage2-merge /skeleton/etc/group /initramfs/etc/group
-COPY --from=stage2-merge /skeleton/usr/lib/ld-musl-x86_64.so.1 /initramfs/lib/ld-musl-x86_64.so.1
-# Udev stuff, consider building eudev?
-COPY --from=stage2-merge /skeleton/usr/lib/systemd/systemd-udevd /initramfs/usr/lib/systemd/systemd-udevd
-COPY --from=stage2-merge /skeleton/usr/sbin/udevadm /initramfs/usr/sbin/udevadm
-COPY --from=stage2-merge /skeleton/etc/udev/ /initramfs/etc/udev/
-COPY --from=stage2-merge /skeleton/usr/lib/udev/ /initramfs/usr/lib/udev/
-# Policy for network naming
-COPY --from=stage2-merge /skeleton/usr/lib/systemd/network/ /initramfs/usr/lib/systemd/network/
-# This are all libs needed by systemd-udevd
-COPY --from=stage2-merge /skeleton/usr/lib/systemd/libsystemd-shared-257.so /initramfs/usr/lib/systemd/libsystemd-shared-257.so
-COPY --from=stage2-merge /skeleton/usr/lib/libblkid.so.1 /initramfs/usr/lib/libblkid.so.1
-COPY --from=stage2-merge /skeleton/usr/lib/libcrypto.so.3 /initramfs/usr/lib/libcrypto.so.3
-COPY --from=stage2-merge /skeleton/usr/lib/libmount.so.1 /initramfs/usr/lib/libmount.so.1
-COPY --from=stage2-merge /skeleton/usr/lib/libcap.so.2 /initramfs/usr/lib/libcap.so.2
-COPY --from=stage2-merge /skeleton/usr/lib/libacl.so.1 /initramfs/usr/lib/libacl.so.1
-COPY --from=stage2-merge /skeleton/usr/lib/libattr.so.1 /initramfs/usr/lib/libattr.so.1
-COPY --from=stage2-merge /skeleton/usr/lib/libseccomp.so.2 /initramfs/usr/lib/libseccomp.so.2
-COPY --from=immucore /immucore /initramfs/bin/immucore
-WORKDIR /initramfs
-COPY files/init .
-RUN find . | cpio -o -H newc > ../init.cpio
-
-### Assemble the final image for testing
-## You can use this image with aurora and it will generate a bootable image
-FROM scratch AS devel
-COPY --from=stage2-merge /skeleton /
-
-# This probably needs moving into a different place rather than here it shouldbe done under the skeleton? After building and installing it?
-RUN busybox --install
-## Workaround to have bash as /bin/sh after busybox overrides it
-RUN rm /bin/sh && ln -s /bin/bash /bin/sh
-RUN systemctl preset-all
-COPY --from=kernel /kernel/vmlinuz /boot/vmlinuz
-COPY --from=kernel /modules/ /lib/modules/
-COPY --from=initramfs-builder /init.cpio /boot/initramfs
-COPY --from=kairos-agent /kairos-agent /usr/bin/kairos-agent
-# workaround as we dont have the /system/oem files
-RUN mkdir -p /system/oem/
-## Make eth devices managed by systemd-networkd
-RUN echo -e "[Match]\nName=en*\n\n[Network]\nDHCP=yes\n" > /etc/systemd/network/20-wired.network
-
 
 ### Assemble the image depending on our bootloader
 ## either grub or systemd-boot for trusted boot
@@ -2691,6 +2644,8 @@ COPY files/login.defs /etc/login.defs
 RUN rm -f /etc/passwd /etc/shadow /etc/group /etc/gshadow
 ## Create any missing users from scratch
 RUN systemd-sysusers
+## Symlink ld-musl-$ARCH.so to /bin/ldd to provide ldd functionality
+RUN ln -s /lib/ld-musl-x86_64.so.1 /bin/ldd
 
 ### final image
 FROM stage3 AS default
