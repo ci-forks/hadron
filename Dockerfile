@@ -727,8 +727,8 @@ COPY --from=sources-downloader /sources/downloads/xxHash-${XXHASH_VERSION}.tar.g
 ENV CC="gcc"
 RUN mkdir -p /sources && cd /sources && tar -xf xxHash-${XXHASH_VERSION}.tar.gz && mv xxHash-${XXHASH_VERSION} xxhash && \
     tar -xf xxHash-${XXHASH_VERSION}.tar.gz && mv xxHash-${XXHASH_VERSION} xxhash && \
-    cd xxhash && mkdir -p /xxhash && CC=gcc make -s -j${JOBS} DESTDIR=/xxhash && \
-    make -s -j${JOBS} DESTDIR=/xxhash install && make -s -j${JOBS} install
+    cd xxhash && mkdir -p /xxhash && CC=gcc make -s -j${JOBS} prefix=/usr DESTDIR=/xxhash && \
+    make -s -j${JOBS} prefix=/usr DESTDIR=/xxhash install && make -s -j${JOBS} prefix=/usr install
 
 ## zstd
 FROM xxhash AS zstd
@@ -755,8 +755,8 @@ ENV LZ4_VERSION=${LZ4_VERSION}
 COPY --from=sources-downloader /sources/downloads/lz4-${LZ4_VERSION}.tar.gz /sources/
 
 RUN mkdir -p /sources && cd /sources && tar -xf lz4-${LZ4_VERSION}.tar.gz && mv lz4-${LZ4_VERSION} lz4 && \
-    cd lz4 && mkdir -p /lz4 && CC=gcc make -s -j${JOBS} PREFIX="/usr" DESTDIR=/lz4 && \
-    make -s -j${JOBS} DESTDIR=/lz4 install && make -s -j${JOBS} install
+    cd lz4 && mkdir -p /lz4 && CC=gcc make -s -j${JOBS} prefix=/usr DESTDIR=/lz4 && \
+    make -s -j${JOBS} prefix=/usr DESTDIR=/lz4 install && make -s -j${JOBS} prefix=/usr install
 
 ## attr
 FROM lz4 AS attr
@@ -839,7 +839,7 @@ RUN mkdir -p /sources && cd /sources && tar -xf gawk-${GAWK_VERSION}.tar.xz && m
     --mandir=/usr/share/man \
     --infodir=/usr/share/info \
     --disable-nls \
-    --disable-pma&& make -s -j${JOBS} DESTDIR=/gawk && \
+    --disable-pma && make -s -j${JOBS} DESTDIR=/gawk && \
     make -s -j${JOBS} DESTDIR=/gawk install && make -s -j${JOBS} install
 
 ## rsync
@@ -1388,7 +1388,7 @@ RUN DESTDIR=/dbus ninja -C buildDir install
 
 
 # first pam build so we can build systemd against it
-FROM python-build AS pam-base
+FROM python-build AS pam
 
 COPY --from=pkgconfig /pkgconfig /pkgconfig
 RUN rsync -aHAX --keep-dirlinks  /pkgconfig/. /
@@ -1490,7 +1490,7 @@ RUN rsync -aHAX --keep-dirlinks  /libseccomp/. /
 COPY --from=dbus /dbus /dbus
 RUN rsync -aHAX --keep-dirlinks  /dbus/. /
 
-COPY --from=pam-base /pam /pam
+COPY --from=pam /pam /pam
 RUN rsync -aHAX --keep-dirlinks  /pam/. /
 
 COPY --from=kmod /kmod /kmod
@@ -2323,7 +2323,7 @@ COPY files/shells /pam/etc/shells
 RUN chmod 644 /pam/etc/shells
 
 # install shadow now that we have pam to get a proper login binary
-FROM rsync AS shadow
+FROM rsync AS shadow-base
 COPY --from=pkgconfig /pkgconfig /pkgconfig
 RUN rsync -aHAX --keep-dirlinks  /pkgconfig/. /
 COPY --from=readline /readline /readline
@@ -2332,6 +2332,10 @@ COPY --from=bash /bash /bash
 RUN rsync -aHAX --keep-dirlinks  /bash/. /
 COPY --from=libcap /libcap /libcap
 RUN rsync -aHAX --keep-dirlinks  /libcap/. /
+
+
+# Shadow with systemd support via PAM
+FROM shadow-base AS shadow-systemd
 COPY --from=pam-systemd /pam /pam
 RUN rsync -aHAX --keep-dirlinks  /pam/. /
 COPY --from=sources-downloader /sources/downloads/shadow.tar.xz /sources/
@@ -2342,9 +2346,20 @@ WORKDIR /sources/shadow
 RUN ./configure ${COMMON_CONFIGURE_ARGS} --sysconfdir=/etc --without-libbsd
 RUN make -s -j${JOBS} && make -s -j${JOBS} exec_prefix=/usr pamddir= install DESTDIR=/shadow && make exec_prefix=/usr pamddir= -s -j${JOBS} install
 
+# Shadow with PAM support, no systemd
+FROM shadow-base AS shadow
+COPY --from=pam /pam /pam
+RUN rsync -aHAX --keep-dirlinks  /pam/. /
+COPY --from=sources-downloader /sources/downloads/shadow.tar.xz /sources/
+RUN mkdir -p /shadow
+WORKDIR /sources
+RUN tar -xf shadow.tar.xz && mv shadow-* shadow
+WORKDIR /sources/shadow
+RUN ./configure ${COMMON_CONFIGURE_ARGS} --sysconfdir=/etc --without-libbsd
+RUN make -s -j${JOBS} && make -s -j${JOBS} exec_prefix=/usr pamddir= install DESTDIR=/shadow && make exec_prefix=/usr pamddir= -s -j${JOBS} install
 
 
-FROM rsync AS sudo
+FROM rsync AS sudo-base
 
 COPY --from=pkgconfig /pkgconfig /pkgconfig
 RUN rsync -aHAX --keep-dirlinks  /pkgconfig/. /
@@ -2352,10 +2367,12 @@ COPY --from=readline /readline /readline
 RUN rsync -aHAX --keep-dirlinks  /readline/. /
 COPY --from=bash /bash /bash
 RUN rsync -aHAX --keep-dirlinks  /bash/. /
-COPY --from=pam-systemd /pam /pam
-RUN rsync -aHAX --keep-dirlinks  /pam/. /
 COPY --from=pax-utils /pax-utils /pax-utils
 RUN rsync -aHAX --keep-dirlinks  /pax-utils/. /
+
+FROM sudo-base AS sudo-systemd
+COPY --from=pam-systemd /pam /pam
+RUN rsync -aHAX --keep-dirlinks  /pam/. /
 COPY --from=sources-downloader /sources/downloads/sudo.tar.gz /sources/
 RUN mkdir -p /sudo
 WORKDIR /sources
@@ -2364,23 +2381,27 @@ WORKDIR /sources/sudo
 RUN ./configure ${COMMON_CONFIGURE_ARGS} --libexecdir=/usr/lib --with-pam --with-secure-path --with-env-editor --with-passprompt="[sudo] password for %p: "
 RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/sudo && make -s -j${JOBS} install
 
-
-
+FROM sudo-base AS sudo
+COPY --from=pam /pam /pam
+RUN rsync -aHAX --keep-dirlinks  /pam/. /
+COPY --from=sources-downloader /sources/downloads/sudo.tar.gz /sources/
+RUN mkdir -p /sudo
+WORKDIR /sources
+RUN tar -xf sudo.tar.gz && mv sudo-* sudo
+WORKDIR /sources/sudo
+RUN ./configure ${COMMON_CONFIGURE_ARGS} --libexecdir=/usr/lib --with-pam --with-secure-path --with-env-editor --with-passprompt="[sudo] password for %p: "
+RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/sudo && make -s -j${JOBS} install
 ########################################################
 #
 # Stage 2 - Building the final image
 #
 ########################################################
-
+# stage-merge will merge all the built packages into a single directory
 FROM stage0 AS stage2-merge
 
 RUN apk add rsync
 
 COPY --from=skeleton /sysroot /skeleton
-
-## Perl
-# COPY --from=perl /perl /perl
-# RUN rsync -aHAX --keep-dirlinks  /perl/. /skeleton/
 
 ## Musl
 COPY --from=musl /sysroot /musl
@@ -2402,9 +2423,6 @@ RUN rsync -aHAX --keep-dirlinks  /curl/. /skeleton/
 COPY --from=openssl /openssl /openssl
 RUN rsync -aHAX --keep-dirlinks  /openssl/. /skeleton/
 
-## openssh
-COPY --from=openssh /openssh /openssh
-RUN rsync -aHAX --keep-dirlinks  /openssh/. /skeleton/
 
 ## ca-certificates
 COPY --from=ca-certificates /ca-certificates /ca-certificates
@@ -2450,18 +2468,6 @@ RUN rsync -aHAX --keep-dirlinks  /libcap/. /skeleton/
 COPY --from=util-linux /util-linux /util-linux
 RUN rsync -aHAX --keep-dirlinks  /util-linux/. /skeleton/
 
-## systemd
-COPY --from=systemd /systemd /systemd
-RUN rsync -aHAX --keep-dirlinks  /systemd/. /skeleton/
-
-## dbus
-COPY --from=dbus-systemd /dbus /dbus
-RUN rsync -aHAX --keep-dirlinks  /dbus/. /skeleton/
-
-## seccomp
-COPY --from=libseccomp /libseccomp /libseccomp
-RUN rsync -aHAX --keep-dirlinks  /libseccomp/. /skeleton/
-
 ## libexpat
 COPY --from=expat /expat /expat
 RUN rsync -aHAX --keep-dirlinks  /expat/. /skeleton/
@@ -2469,6 +2475,111 @@ RUN rsync -aHAX --keep-dirlinks  /expat/. /skeleton/
 ## libaio for io asynchronous operations
 COPY --from=libaio /libaio /libaio
 RUN rsync -aHAX --keep-dirlinks  /libaio/. /skeleton/
+
+## rsync
+COPY --from=rsync /rsync /rsync
+RUN rsync -aHAX --keep-dirlinks  /rsync/. /skeleton/
+
+## popt for rsync
+COPY --from=popt /popt /popt
+RUN rsync -aHAX --keep-dirlinks  /popt/. /skeleton
+
+COPY --from=lz4 /lz4 /lz4
+RUN rsync -aHAX --keep-dirlinks  /lz4/. /skeleton
+
+## xxhash needed by rsync
+COPY --from=xxhash /xxhash /xxhash
+RUN rsync -aHAX --keep-dirlinks  /xxhash/. /skeleton
+
+## kbd for loadkeys support
+COPY --from=kbd /kbd /kbd
+RUN rsync -aHAX --keep-dirlinks  /kbd/. /skeleton
+
+# This provides readelf needed by ldconfig
+COPY --from=pax-utils /pax-utils /pax-utils
+RUN rsync -aHAX --keep-dirlinks  /pax-utils/. /skeleton
+
+## Copy ldconfig from alpine musl
+COPY --from=sources-downloader /sources/downloads/aports.tar.gz /
+RUN tar xf /aports.tar.gz && mv aports-* aports
+RUN cp /aports/main/musl/ldconfig /skeleton/usr/bin/ldconfig
+
+# make sure they are both executable
+RUN chmod 755 /skeleton/sbin/ldconfig
+
+# TODO: Do we need sudo in the container image?
+## Cleanup
+
+# We don't need headers
+RUN rm -rf /skeleton/usr/include
+# Remove man files
+RUN rm -rf /skeleton/usr/share/man
+RUN rm -rf /skeleton/usr/local/share/man
+# Remove docs
+RUN rm -rf /skeleton/usr/share/doc
+RUN rm -rf /skeleton/usr/share/info
+RUN rm -rf /skeleton/usr/share/local/info
+# Remove static libs
+RUN find /skeleton -name '*.a' -delete
+
+# Container base image, it has the minimal required to run as a container
+FROM scratch AS container
+COPY --from=stage2-merge /skeleton /
+RUN rm /bin/sh && ln -s /bin/bash /bin/sh
+## Symlink ld-musl-$ARCH.so to /bin/ldd to provide ldd functionality
+RUN ln -s /lib/ld-musl-x86_64.so.1 /bin/ldd
+CMD ["/bin/bash", "-l"]
+
+# Target that tests to see if the binaries work or we are missing some libs
+FROM container AS container-test
+RUN bash --version
+RUN ldconfig bash
+RUN curl --version
+RUN rsync --version
+RUN grep --version
+RUN find --version
+RUN zstd --version
+RUN xxhsum --version
+RUN lz4 --version
+RUN ls --version
+RUN attr -l /bin/bash
+RUN getfacl --version
+RUN setfacl --version
+RUN busybox --list
+RUN openssl version
+RUN ldd /bin/bash
+
+# stage2-merge is where we prepare stuff for the final image
+# more complete, this has systemd, sudo, openssh, iptables, kernel, etc..
+FROM alpine:${ALPINE_VERSION} AS full-image-merge
+RUN apk add rsync
+## openssh
+COPY --from=openssh /openssh /openssh
+RUN rsync -aHAX --keep-dirlinks  /openssh/. /skeleton/
+
+# kernel and modules
+COPY --from=kernel /kernel/vmlinuz /skeleton/boot/vmlinuz
+COPY --from=kernel /modules/lib/modules/ /skeleton/lib/modules
+
+COPY --from=sudo-systemd /sudo /sudo
+RUN rsync -aHAX --keep-dirlinks  /sudo/. /skeleton
+
+# Iptables is needed to support k8s
+COPY --from=iptables /iptables /iptables
+RUN rsync -aHAX --keep-dirlinks  /iptables/. /skeleton
+
+## cryptsetup for encrypted partitions
+## TODO: do we need to build systemd after cryptsetup to have the systemd-cryptsetup unit?
+COPY --from=cryptsetup /cryptsetup /cryptsetup
+RUN rsync -aHAX --keep-dirlinks  /cryptsetup/. /skeleton
+
+## jsonc needed by libcryptsetup
+COPY --from=jsonc /jsonc /jsonc
+RUN rsync -aHAX --keep-dirlinks  /jsonc/. /skeleton
+
+## growpart
+COPY --from=growpart /growpart /growpart
+RUN rsync -aHAX --keep-dirlinks  /growpart/. /skeleton
 
 # device-mapper from lvm2
 COPY --from=lvm2 /lvm2 /lvm2
@@ -2500,68 +2611,25 @@ RUN rsync -aHAX --keep-dirlinks  /popt/. /skeleton/
 COPY --from=gptfdisk /gptfdisk /gptfdisk
 RUN rsync -aHAX --keep-dirlinks  /gptfdisk/. /skeleton/
 
-## rsync
-COPY --from=rsync /rsync /rsync
-RUN rsync -aHAX --keep-dirlinks  /rsync/. /skeleton/
+## systemd
+COPY --from=systemd /systemd /systemd
+RUN rsync -aHAX --keep-dirlinks  /systemd/. /skeleton/
 
-## cryptsetup for encrypted partitions
-## TODO: do we need to build systemd after cryptsetup to have the systemd-cryptsetup unit?
-COPY --from=cryptsetup /cryptsetup /cryptsetup
-RUN rsync -aHAX --keep-dirlinks  /cryptsetup/. /skeleton
+## dbus
+COPY --from=dbus-systemd /dbus /dbus
+RUN rsync -aHAX --keep-dirlinks  /dbus/. /skeleton/
 
-## jsonc needed by libcryptsetup
-COPY --from=jsonc /jsonc /jsonc
-RUN rsync -aHAX --keep-dirlinks  /jsonc/. /skeleton
+## seccomp
+COPY --from=libseccomp /libseccomp /libseccomp
+RUN rsync -aHAX --keep-dirlinks  /libseccomp/. /skeleton/
 
-## growpart
-COPY --from=growpart /growpart /growpart
-RUN rsync -aHAX --keep-dirlinks  /growpart/. /skeleton
-
-## xxhash needed by rsync
-COPY --from=xxhash /xxhash /xxhash
-RUN rsync -aHAX --keep-dirlinks  /xxhash/. /skeleton
-
-## strace, disabled but if we need to debug this is very useful to add
-## Just uncomment this and you will get it in the final image
-#COPY --from=strace /strace /strace
-#RUN rsync -aHAX --keep-dirlinks  /strace/. /skeleton
-
-## kbd for loadkeys support
-COPY --from=kbd /kbd /kbd
-RUN rsync -aHAX --keep-dirlinks  /kbd/. /skeleton
-
-COPY --from=iptables /iptables /iptables
-RUN rsync -aHAX --keep-dirlinks  /iptables/. /skeleton
-
+# copy pam but with systemd support
 COPY --from=pam-systemd /pam /pam
 RUN rsync -aHAX --keep-dirlinks  /pam/. /skeleton
 
-COPY --from=shadow /shadow /shadow
+# copy shadow but with systemd support
+COPY --from=shadow-systemd /shadow /shadow
 RUN rsync -aHAX --keep-dirlinks  /shadow/. /skeleton
-
-# This provides readelf needed by ldconfig
-COPY --from=pax-utils /pax-utils /pax-utils
-RUN rsync -aHAX --keep-dirlinks  /pax-utils/. /skeleton
-
-# kernel and modules
-COPY --from=kernel /kernel/vmlinuz /skeleton/boot/vmlinuz
-COPY --from=kernel /modules/lib/modules/ /skeleton/lib/modules
-
-## Copy ldconfig from alpine musl
-COPY --from=sources-downloader /sources/downloads/aports.tar.gz /
-RUN tar xf /aports.tar.gz && mv aports-* aports
-RUN cp /aports/main/musl/ldconfig /skeleton/usr/bin/ldconfig
-
-# make sure they are both executable
-RUN chmod 755 /skeleton/sbin/ldconfig
-
-COPY --from=sudo /sudo /sudo
-RUN rsync -aHAX --keep-dirlinks  /sudo/. /skeleton
-
-## Cleanup
-
-# We don't need headers
-RUN rm -rf /skeleton/usr/include
 
 ## This target will assemble dracut and all its dependencies into the skeleton
 FROM stage0 AS dracut-final
@@ -2603,36 +2671,39 @@ RUN rsync -aHAX --keep-dirlinks  /dracut/. /skeleton
 ## needed software and then we merge it with the bootloader specific stuff
 
 ## This workarounds over the COPY not being able to run over the same dir
-FROM alpine:${ALPINE_VERSION} AS stage2-pre-grub
+## We merge the base container + stage2-merge (kernel, sudo, systemd, etc) + dracut into a single dir
+FROM alpine:${ALPINE_VERSION} AS full-image-pre-grub
 RUN apk add rsync
-COPY --from=stage2-merge /skeleton /stage2-merge
+COPY --from=container / /skeleton
+COPY --from=full-image-merge /skeleton /stage2-merge
 RUN rsync -aHAX --keep-dirlinks  /stage2-merge/. /skeleton/
 COPY --from=dracut-final /skeleton /dracut-final
 RUN rsync -aHAX --keep-dirlinks  /dracut-final/. /skeleton/
 
-
-FROM alpine:${ALPINE_VERSION} AS stage2-pre-systemd
+## We merge the base container + stage2-merge (kernel, sudo, systemd, etc) into a single dir
+FROM alpine:${ALPINE_VERSION} AS full-image-pre-systemd
 RUN apk add rsync
-COPY --from=stage2-merge /skeleton /stage2-merge
+COPY --from=container / /skeleton
+COPY --from=full-image-merge /skeleton /stage2-merge
 RUN rsync -aHAX --keep-dirlinks  /stage2-merge/. /skeleton/
-## Systemd-boot would go here to merge with the skeleton
+# No dracut for systemd-boot
 
 ## Final image for grub
-FROM scratch AS stage2-grub
-COPY --from=stage2-pre-grub /skeleton /
-# grub would go in here I guess
+FROM scratch AS full-image-grub
+COPY --from=full-image-pre-grub /skeleton /
 
 ## Final image for systemd-boot
-FROM scratch AS stage2-systemd
-COPY --from=stage2-pre-systemd /skeleton /
-## install systemd-boot here I guess
+FROM scratch AS full-image-systemd
+COPY --from=full-image-pre-systemd /skeleton /
 
 ## Final image depending on the bootloader
-FROM stage2-${BOOTLOADER} AS stage3
+# We run some final tasks like creating /etc/shadow, /etc/passwd, etc
+# We also add some default configs for sysctl, login.defs, etc
+# We also run systemctl preset-all to have default presets for systemd services
+FROM full-image-${BOOTLOADER} AS full-image-final
 ARG VERSION
 RUN busybox --install
 ## Workaround to have bash as /bin/sh after busybox overrides it
-RUN rm /bin/sh && ln -s /bin/bash /bin/sh
 RUN echo "VERSION_ID=\"${VERSION}\"" >> /etc/os-release
 RUN systemctl preset-all
 # Add sysctl configs
@@ -2644,9 +2715,7 @@ COPY files/login.defs /etc/login.defs
 RUN rm -f /etc/passwd /etc/shadow /etc/group /etc/gshadow
 ## Create any missing users from scratch
 RUN systemd-sysusers
-## Symlink ld-musl-$ARCH.so to /bin/ldd to provide ldd functionality
-RUN ln -s /lib/ld-musl-x86_64.so.1 /bin/ldd
 
 ### final image
-FROM stage3 AS default
+FROM full-image-final AS default
 CMD ["/bin/bash", "-l"]
