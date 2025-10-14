@@ -461,6 +461,10 @@ ENV OPEN_SCSI_VERSION=${OPEN_SCSI_VERSION}
 RUN cd /sources/downloads && wget -q https://github.com/open-iscsi/open-iscsi/archive/refs/tags/${OPEN_SCSI_VERSION}.tar.gz && mv ${OPEN_SCSI_VERSION}.tar.gz openscsi.tar.gz
 
 
+# GDB
+ARG GDB_VERSION=16.3
+RUN cd /sources/downloads && wget -q https://sourceware.org/pub/gdb/releases/gdb-${GDB_VERSION}.tar.gz && mv gdb-${GDB_VERSION}.tar.gz gdb.tar.gz
+
 FROM stage0 AS skeleton
 
 COPY ./setup_rootfs.sh ./setup_rootfs.sh
@@ -1381,6 +1385,37 @@ RUN tar -xf expat.tar.gz && mv expat-* expat
 WORKDIR /sources/expat
 RUN bash ./configure ${COMMON_CONFIGURE_ARGS}
 RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/expat
+
+FROM stage0 as gdb-stage0
+ARG GMP_VERSION=6.3.0
+ARG MPFR_VERSION=4.2.2
+ARG MPC_VERSION=1.3.1
+
+RUN mkdir -p /gdb
+WORKDIR /sources
+COPY --from=sources-downloader /sources/downloads/gdb.tar.gz .
+COPY --from=sources-downloader /sources/downloads/gmp-${GMP_VERSION}.tar.bz2 .
+COPY --from=sources-downloader /sources/downloads/mpfr-${MPFR_VERSION}.tar.bz2 .
+COPY --from=sources-downloader /sources/downloads/mpc-${MPC_VERSION}.tar.gz .
+COPY --from=expat /expat /
+COPY --from=python-build /python /
+
+RUN tar -xf gmp-${GMP_VERSION}.tar.bz2
+RUN tar -xf mpfr-${MPFR_VERSION}.tar.bz2
+RUN tar -xf gdb.tar.gz && mv gdb-* gdb
+RUN tar -xf mpc-${MPC_VERSION}.tar.gz
+RUN mv -v mpfr-${MPFR_VERSION} gdb/mpfr
+RUN mv -v gmp-${GMP_VERSION} gdb/gmp
+RUN mv -v mpc-${MPC_VERSION} gdb/mpc
+WORKDIR /sources/gdb
+RUN ./configure --quiet ${COMMON_CONFIGURE_ARGS} \
+    --target=${TARGET} \
+    --with-sysroot=/ \
+    --disable-nls \
+    --with-libexpat-prefix=/usr \
+    --disable-multilib
+RUN make -s ARCH="${ARCH}" CROSS_COMPILE="${TARGET}-" -j${JOBS}
+RUN make -s ARCH="${ARCH}" CROSS_COMPILE="${TARGET}-" DESTDIR=/gdb install
 
 
 ## dbus first pass without systemd support so we can build systemd afterwards
@@ -2791,4 +2826,11 @@ RUN systemd-sysusers
 
 ### final image
 FROM full-image-final AS default
+CMD ["/bin/bash", "-l"]
+
+## final image with debug
+FROM full-image-final AS debug
+
+COPY --from=strace /strace /
+COPY --from=gdb-stage0 /gdb /
 CMD ["/bin/bash", "-l"]
