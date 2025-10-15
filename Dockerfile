@@ -164,6 +164,9 @@ RUN cd /sources/downloads && wget -q https://github.com/seccomp/libseccomp/relea
 ARG STRACE_VERSION=6.16
 RUN cd /sources/downloads && wget -q https://strace.io/files/${STRACE_VERSION}/strace-${STRACE_VERSION}.tar.xz && mv strace-${STRACE_VERSION}.tar.xz strace.tar.xz
 
+ARG VIM_VERSION=9.1
+RUN cd /sources/downloads && wget -q https://github.com/vim/vim/archive/refs/tags/v${VIM_VERSION}.0.tar.gz && mv v${VIM_VERSION}.0.tar.gz vim.tar.gz
+
 ARG KBD_VERSION=2.9.0
 RUN cd /sources/downloads && wget -q https://www.kernel.org/pub/linux/utils/kbd/kbd-${KBD_VERSION}.tar.gz && mv kbd-${KBD_VERSION}.tar.gz kbd.tar.gz
 
@@ -1933,6 +1936,23 @@ WORKDIR /sources/strace
 RUN ./configure ${COMMON_CONFIGURE_ARGS} --enable-mpers=check
 RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/strace
 
+## vim
+FROM rsync AS vim
+
+COPY --from=sources-downloader /sources/downloads/vim.tar.gz /sources/
+RUN mkdir -p /vim
+WORKDIR /sources
+RUN tar -xf vim.tar.gz && mv vim-* vim
+WORKDIR /sources/vim/src
+RUN ./configure ${COMMON_CONFIGURE_ARGS} \
+    --with-features=normal \
+    --enable-multibyte \
+    --disable-gui \
+    --disable-netbeans \
+    --disable-gpm \
+    --disable-sysmouse
+RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/vim
+
 ## libmnl
 FROM rsync AS libmnl
 COPY --from=sources-downloader /sources/downloads/libmnl.tar.bz2 /sources/
@@ -2833,4 +2853,5 @@ FROM full-image-final AS debug
 
 COPY --from=strace /strace /
 COPY --from=gdb-stage0 /gdb /
+COPY --from=vim /vim /
 CMD ["/bin/bash", "-l"]
