@@ -1066,27 +1066,20 @@ RUN cd /sources && tar -xf openssl-${OPENSSL_VERSION}.tar.gz && mv openssl-${OPE
     make -s -j${JOBS} DESTDIR=/openssl install_sw install_ssldirs && make -s -j${JOBS} install_sw install_ssldirs
 
 ## Busybox (from stage1, ready to be used in the final image)
+## with a tiny config as we have other tools
 FROM openssl AS busybox
 
 COPY --from=busybox-stage0 /sources /sources
 
 ARG BUSYBOX_VERSION=1.37.0
 ENV BUSYBOX_VERSION=${BUSYBOX_VERSION}
-
-RUN cd /sources && rm -rfv busybox-${BUSYBOX_VERSION} && tar -xf busybox-${BUSYBOX_VERSION}.tar.bz2 && \
-    cd busybox-${BUSYBOX_VERSION} && \
-    make -s distclean && \
-    make -s defconfig && \
-    sed -i 's/\(CONFIG_\)\(.*\)\(INETD\)\(.*\)=y/# \1\2\3\4 is not set/g' .config && \
-    sed -i 's/\(CONFIG_IFPLUGD\)=y/# \1 is not set/' .config && \
-    sed -i 's/\(CONFIG_FEATURE_WTMP\)=y/# \1 is not set/' .config && \
-    sed -i 's/\(CONFIG_FEATURE_UTMP\)=y/# \1 is not set/' .config && \
-    sed -i 's/\(CONFIG_UDPSVD\)=y/# \1 is not set/' .config && \
-    sed -i 's/\(CONFIG_TCPSVD\)=y/# \1 is not set/' .config && \
-    sed -i 's/\(CONFIG_TC\)=y/# \1 is not set/' .config
-RUN cd /sources/busybox-${BUSYBOX_VERSION} && \
-    make -s && \
-    make -s CONFIG_PREFIX="/sysroot" install && make -s -j${JOBS} install
+WORKDIR /sources
+RUN rm -rfv busybox-${BUSYBOX_VERSION} && tar -xf busybox-${BUSYBOX_VERSION}.tar.bz2
+WORKDIR /sources/busybox-${BUSYBOX_VERSION}
+COPY ./files/busybox/minimal.config .config
+RUN make oldconfig
+RUN make -s -j${JOBS} CONFIG_PREFIX="/sysroot" install
+RUN make -s -j${JOBS} install
 
 ## coreutils
 FROM rsync AS coreutils
@@ -1275,8 +1268,8 @@ RUN ./configure ${COMMON_CONFIGURE_ARGS} \
     --with-privsep-path=/var/empty \
     --with-privsep-user=nobody \
     --with-md5-passwords \
-    --with-ssl-engine \
-    --disable-strip
+    --with-ssl-engine
+
 RUN make -s -j${JOBS}
 RUN make -s -j${JOBS} DESTDIR=/openssh install
 RUN make -s -j${JOBS} install
@@ -2033,6 +2026,8 @@ RUN rsync -aHAX --keep-dirlinks  /util-linux/. /
 ## We need libstdc++ and libgcc to build gptfdisk
 COPY --from=gcc-stage0 /sysroot /gcc-stage0
 RUN rsync -aHAX --keep-dirlinks  /gcc-stage0/. /
+COPY --from=pkgconfig /pkgconfig /pkgconfig
+RUN rsync -aHAX --keep-dirlinks  /pkgconfig/. /
 
 COPY --from=sources-downloader /sources/downloads/gptfdisk.tar.gz /sources/
 COPY --from=sources-downloader /sources/downloads/aports.tar.gz /sources/patches/
@@ -2046,10 +2041,16 @@ RUN tar -xf gptfdisk.tar.gz && mv gptfdisk-* gptfdisk
 WORKDIR /sources/gptfdisk
 RUN patch -p1 < /sources/patches/aport/main/gptfdisk/fix-musl.patch
 RUN patch -p1 < /sources/patches/aport/main/gptfdisk/fix-wrong-include.patch
-## TODO: we need to get rid of these LDFLAGS, makes the binary around 9MB
-RUN make -s -j${JOBS} sgdisk
+## Making it static makes the binary around 9MB
+## But allows us to not ship the full libstdc++
+## which saves about 20MB for libstdc++
+## LDFLAGS explanation:
+## -Wl,--as-needed: Only link libraries actually used.
+## -Wl,-Bstatic -lstdc++ -static-libgcc: Statically link libstdc++ and libgcc to avoid shipping large C++ runtime libraries.
+## -Wl,-Bdynamic -luuid -lpopt: Dynamically link libuuid and libpopt, as static versions may not be available or desired.
+ENV GPTFDISK_LDFLAGS="-Wl,--as-needed -Wl,-Bstatic -lstdc++ -static-libgcc -Wl,-Bdynamic -luuid -lpopt"
+RUN make -s -j${JOBS} sgdisk CXXFLAGS='-O2 -pipe' LDFLAGS="${GPTFDISK_LDFLAGS}"
 RUN install -Dm0755 -t /gptfdisk/usr/bin sgdisk
-RUN install -Dm0755 -t /usr/bin sgdisk
 
 
 ## TODO: build cryptsetup before systemd so we can enable systemd-cryptsetup
@@ -2313,8 +2314,7 @@ RUN /usr/bin/meson setup buildDir \
       -D dev-kvm-mode=0660    \
       -D nobody-group=nogroup \
       -D sysupdate=disabled   \
-      -D ukify=disabled       \
-      -D docdir=/usr/share/doc/systemd-${SYSTEMD_VERSION}
+      -D ukify=disabled
 RUN ninja -C buildDir
 RUN DESTDIR=/systemd ninja -C buildDir install
 
@@ -2645,6 +2645,28 @@ RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/libxml && make -s -j
 
 
 ## Build image with all the deps on it
+## Busybox provides the following tools for the final images:
+# Needed to build initramfs under grub variants
+# awk
+# cpio
+# gzip # this is not strictly needed
+# pkill
+# sed
+# cool utils to have for easy management and utility:
+# free
+# clear
+# less
+# lsof
+# more
+# ps
+# watch
+# which
+# ip
+# tree
+# really needed in the system and the actual ones are too big:
+# tar
+# vi
+# mkfs.vfat
 FROM stage1 AS full-toolchain-merge
 ## Prepare rsync to work
 COPY --link --from=rsync /rsync /
@@ -2759,7 +2781,7 @@ RUN rsync -aHAX --keep-dirlinks  /libxml/. /merge
 FROM scratch AS toolchain
 SHELL ["/bin/bash", "-c"]
 COPY --from=full-toolchain-merge /merge /.
-RUN rm /bin/sh && ln -s /bin/bash /bin/sh
+RUN ln -s /bin/bash /bin/sh
 CMD ["/bin/bash", "-l"]
 
 ########################################################
@@ -2770,7 +2792,8 @@ CMD ["/bin/bash", "-l"]
 # stage-merge will merge all the built packages into a single directory
 FROM stage0 AS stage2-merge
 
-RUN apk add rsync
+RUN apk add rsync pax-utils
+
 
 COPY --from=skeleton /sysroot /skeleton
 
@@ -2893,10 +2916,21 @@ RUN rm -rf /skeleton/usr/share/local/info
 # Remove static libs
 RUN find /skeleton -name '*.a' -delete
 
+# Strip binaries
+RUN find /skeleton -type f -print0 | xargs -0 scanelf --nobanner --osabi --etype "ET_DYN,ET_EXEC" --format "%F" | xargs -r strip --strip-unneeded
+
+
+# Remove python artifacts
+RUN find /skeleton -name "*.pyc" -delete
+RUN find /skeleton -name "__pycache__" -type d -exec rm -rf {} +
+
+
 # Container base image, it has the minimal required to run as a container
 FROM scratch AS container
 COPY --from=stage2-merge /skeleton /
-RUN rm /bin/sh && ln -s /bin/bash /bin/sh
+SHELL ["/bin/bash", "-c"]
+## Link sh to bash
+RUN ln -s /bin/bash /bin/sh
 ## Symlink ld-musl-$ARCH.so to /bin/ldd to provide ldd functionality
 RUN ln -s /lib/ld-musl-x86_64.so.1 /bin/ldd
 CMD ["/bin/bash", "-l"]
@@ -2923,7 +2957,9 @@ RUN ldd /bin/bash
 # stage2-merge is where we prepare stuff for the final image
 # more complete, this has systemd, sudo, openssh, iptables, kernel, etc..
 FROM alpine:${ALPINE_VERSION} AS full-image-merge
-RUN apk add rsync
+RUN apk add rsync pax-utils binutils
+
+
 ## openssh
 COPY --from=openssh /openssh /openssh
 RUN rsync -aHAX --keep-dirlinks  /openssh/. /skeleton/
@@ -2954,10 +2990,6 @@ RUN rsync -aHAX --keep-dirlinks  /cryptsetup/. /skeleton
 COPY --from=jsonc /jsonc /jsonc
 RUN rsync -aHAX --keep-dirlinks  /jsonc/. /skeleton
 
-## growpart
-COPY --from=growpart /growpart /growpart
-RUN rsync -aHAX --keep-dirlinks  /growpart/. /skeleton
-
 # device-mapper from lvm2
 COPY --from=lvm2-systemd /lvm2 /lvm2
 RUN rsync -aHAX --keep-dirlinks  /lvm2/. /skeleton/
@@ -2966,31 +2998,19 @@ COPY --from=multipath-tools /multipath-tools /multipath-tools
 RUN rsync -aHAX --keep-dirlinks  /multipath-tools/. /skeleton/
 ## Use mount and cp to preserv symlinks, otherwise if we copy directly
 ## we will resolve the symlinks and copy the real files multiple times
-## Copy libgcc_s.so.1 for multipathd deps and gptfdisk
-RUN --mount=from=gcc-stage0,src=/sysroot/usr/lib,dst=/mnt,ro \
-    mkdir -p /skeleton/usr/lib && \
-    cp -a /mnt/libgcc_s.so* /skeleton/usr/lib/ && \
-    cp -a /mnt/libstdc++.so* /skeleton/usr/lib/
+## Copy libgcc_s.so.1 for multipathd deps
+RUN --mount=from=gcc-stage0,src=/sysroot/usr/lib,dst=/mnt,ro mkdir -p /skeleton/usr/lib && cp -a /mnt/libgcc_s.so* /skeleton/usr/lib/
 
 ## liburcu needed by multipath-tools
 COPY --from=urcu /urcu /urcu
 RUN rsync -aHAX --keep-dirlinks  /urcu/. /skeleton
 
-COPY --from=parted /parted /parted
-RUN rsync -aHAX --keep-dirlinks  /parted/. /skeleton/
-
 COPY --from=e2fsprogs /e2fsprogs /e2fsprogs
 RUN rsync -aHAX --keep-dirlinks  /e2fsprogs/. /skeleton/
 
-COPY --from=dosfstools /dosfstools /dosfstools
-RUN rsync -aHAX --keep-dirlinks  /dosfstools/. /skeleton/
-
-## popt for gptfdisk and probably parted
-COPY --from=popt /popt /popt
-RUN rsync -aHAX --keep-dirlinks  /popt/. /skeleton/
-
-COPY --from=gptfdisk /gptfdisk /gptfdisk
-RUN rsync -aHAX --keep-dirlinks  /gptfdisk/. /skeleton/
+## mkfs.vfat provided by busybox
+#COPY --from=dosfstools /dosfstools /dosfstools
+#RUN rsync -aHAX --keep-dirlinks  /dosfstools/. /skeleton/
 
 ## systemd
 COPY --from=systemd /systemd /systemd
@@ -3027,9 +3047,19 @@ RUN rsync -aHAX --keep-dirlinks  /xz/. /skeleton
 COPY --from=tpm2-tss /tpm2-tss /tpm2-tss
 RUN rsync -aHAX --keep-dirlinks  /tpm2-tss/. /skeleton
 
+# Strip binaries
+RUN find /skeleton -type f -print0 | xargs -0 scanelf --nobanner --osabi --etype "ET_DYN,ET_EXEC" --format "%F" | xargs -r strip --strip-unneeded
+
+
+# Remove python artifacts
+RUN find /skeleton -name "*.pyc" -delete
+RUN find /skeleton -name "__pycache__" -type d -exec rm -rf {} +
+
+
 ## This target will assemble dracut and all its dependencies into the skeleton
 FROM stage0 AS dracut-final
-RUN apk add rsync
+RUN apk add rsync pax-utils
+
 ## kmod for modprobe, insmod, lsmod, modinfo, rmmod. Draut depends on this
 COPY --from=kmod /kmod /kmod
 RUN rsync -aHAX --keep-dirlinks  /kmod/. /skeleton
@@ -3060,6 +3090,12 @@ RUN rsync -aHAX --keep-dirlinks  /grub-bios/. /skeleton
 ## Dracut
 COPY --from=dracut /dracut /dracut
 RUN rsync -aHAX --keep-dirlinks  /dracut/. /skeleton
+
+# Strip binaries
+# As this is added to the full-image-merge we still have to strip binaries here
+RUN find /skeleton -type f -print0 | xargs -0 scanelf --nobanner --osabi --etype "ET_DYN,ET_EXEC" --format "%F" | xargs -r strip --strip-unneeded
+
+
 
 ### Assemble the image depending on our bootloader
 ## either grub or systemd-boot for trusted boot
@@ -3099,6 +3135,7 @@ COPY --from=full-image-pre-systemd /skeleton /
 # We also add some default configs for sysctl, login.defs, etc
 # We also run systemctl preset-all to have default presets for systemd services
 FROM full-image-${BOOTLOADER} AS full-image-final
+SHELL ["/bin/bash", "-c"]
 ARG VERSION
 ## Cleanup first
 # We don't need headers
@@ -3144,3 +3181,10 @@ FROM full-image-final AS debug
 COPY --from=strace /strace /
 COPY --from=gdb-stage0 /gdb /
 CMD ["/bin/bash", "-l"]
+
+## Final verification stage
+FROM full-image-final AS image-test
+COPY files/verify_binaries.sh /verify_binaries.sh
+RUN chmod +x /verify_binaries.sh
+RUN /verify_binaries.sh
+
