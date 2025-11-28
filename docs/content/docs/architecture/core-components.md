@@ -6,7 +6,7 @@ description: |
     The fundamental components that make up Hadron: musl libc, systemd, and the Linux kernel
 ---
 
-Hadron is built from three fundamental components: musl libc, systemd, and the Linux kernel. Each is compiled from upstream sources without modifications, ensuring compatibility and reducing maintenance burden.
+Hadron is built from three fundamental components: musl libc, systemd, and the Linux kernel. Each is compiled from upstream sources, ensuring compatibility and reducing maintenance burden.
 
 ## musl libc
 
@@ -43,18 +43,18 @@ musl offers:
 
 **Upstream Alignment**
 
-Hadron uses unpatched musl from upstream, ensuring:
+Hadron uses musl from upstream, ensuring:
 
-- No downstream maintenance burden
+- Minimal downstream maintenance burden
 - Direct access to upstream fixes
 - Compatibility with upstream development
-- No vendor-specific modifications
+- Minimal vendor-specific modifications
 
 ### Compatibility
 
 musl provides a POSIX-compliant interface and maintains compatibility with most Linux software. While some applications may require glibc-specific features, the majority of software works correctly with musl.
 
-The build system compiles musl from source, ensuring no downstream patches or modifications are applied.
+The build system compiles musl from source.
 
 ## systemd
 
@@ -186,11 +186,10 @@ Together, they form a minimal but complete operating system suitable for cloud-n
 
 ## Upstream Alignment
 
-All components are built from upstream sources without modifications:
+All components are built from upstream sources:
 
-- **No downstream patches**: Hadron uses vanilla upstream code
 - **Direct updates**: New upstream releases can be integrated directly
-- **Reduced maintenance**: No patch management or backporting
+- **Reduced maintenance**: Minimal patch management or backporting
 - **Better compatibility**: Aligns with upstream development
 
 This approach ensures Hadron stays current with upstream development while maintaining a minimal maintenance burden.

@@ -7,7 +7,7 @@ description: |
     Understanding Hadron's design and implementation
 ---
 
-Hadron is a minimal Linux distribution built completely from scratch using a container-based build system. Unlike distributions derived from Ubuntu, Debian, or Alpine, Hadron is constructed from upstream sources with no downstream patches or modifications.
+Hadron is a minimal Linux distribution built completely from scratch using a container-based build system. Unlike distributions derived from Ubuntu, Debian, or Alpine, Hadron is constructed from upstream sources.
 
 ## Design Philosophy
 
@@ -17,7 +17,7 @@ Hadron is designed specifically for **immutable, image-based systems**. While Ha
 
 **Minimal and Upstream-First**
 
-Hadron includes only essential components needed to boot securely and run workloads. Every package is compiled from upstream sources without modifications, ensuring compatibility and reducing maintenance burden.
+Hadron includes only essential components needed to boot securely and run workloads. Every package is compiled from upstream sources, ensuring compatibility and reducing maintenance burden.
 
 **Container-Based Distribution**
 
