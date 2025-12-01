@@ -143,15 +143,7 @@ For a distribution targeting cloud-native and edge workloads, systemd's modern c
 
 ### systemd Features in Hadron
 
-The build process compiles systemd with musl support, enabling features like:
-
-- **systemd-cryptsetup**: Encrypted partition management
-- **systemd-networkd**: Network configuration
-- **systemd-resolved**: DNS resolution
-- **systemd-journald**: Logging
-- **systemd-udevd**: Device management
-
-All of these work without requiring glibc, delivering modern system management capabilities with a minimal footprint.
+The build process compiles systemd with musl support, enabling systemd features without requiring glibc, delivering modern system management capabilities with a minimal footprint.
 
 ### Build Considerations
 
