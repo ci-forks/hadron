@@ -23,7 +23,7 @@ musl is significantly smaller than glibc, resulting in:
 - Smaller binary sizes
 - Reduced memory usage
 - Faster startup times
-- Smaller container images (Hadron images are ~8MB vs typical glibc-based distributions)
+- Smaller container images
 
 This minimal footprint aligns with Hadron's philosophy of "bare essentials only" and makes it ideal for cloud and edge deployments where resource efficiency matters.
 
