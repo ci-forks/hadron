@@ -1852,12 +1852,26 @@ RUN tar -xf linux-${KERNEL_VERSION}.tar.xz && mv linux-${KERNEL_VERSION} kernel
 
 
 FROM kernel-base AS kernel-cloud
+ARG TARGETARCH
 WORKDIR /sources/kernel
-RUN cp -rfv /sources/kernel-configs/cloud.config .config
+# For x86_64 use the provided optimized config, for ARM64 use defconfig
+# TODO: Add optimized ARM64 kernel configs to files/kernel/ directory
+RUN if [ "${TARGETARCH}" = "arm64" ]; then \
+        . /arch-env.sh && make ARCH="${KERNEL_ARCH}" defconfig; \
+    else \
+        cp -rfv /sources/kernel-configs/cloud.config .config; \
+    fi
 
 FROM kernel-base AS kernel-default
+ARG TARGETARCH
 WORKDIR /sources/kernel
-RUN cp -rfv /sources/kernel-configs/default.config .config
+# For x86_64 use the provided optimized config, for ARM64 use defconfig
+# TODO: Add optimized ARM64 kernel configs to files/kernel/ directory
+RUN if [ "${TARGETARCH}" = "arm64" ]; then \
+        . /arch-env.sh && make ARCH="${KERNEL_ARCH}" defconfig; \
+    else \
+        cp -rfv /sources/kernel-configs/default.config .config; \
+    fi
 
 FROM kernel-${KERNEL_TYPE} AS kernel
 ARG JOBS
