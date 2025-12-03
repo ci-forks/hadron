@@ -712,17 +712,13 @@ ARG VENDOR="hadron"
 ARG CFLAGS
 ENV VENDOR=${VENDOR}
 
-# Map TARGETARCH to architecture values - set defaults for x86_64
-# Note: ENV values are set at build time based on the platform
-ARG ARCH=x86-64
-ARG BUILD_ARCH=x86_64
-ARG KERNEL_ARCH=x86_64
-
-ENV ARCH=${ARCH}
-ENV BUILD_ARCH=${BUILD_ARCH}
-ENV KERNEL_ARCH=${KERNEL_ARCH}
-ENV TARGET=${BUILD_ARCH}-${VENDOR}-linux-musl
-ENV BUILD=${BUILD_ARCH}-pc-linux-musl
+# Set default architecture values (x86_64)
+# These will be overridden in RUN commands by sourcing /arch-env.sh
+ENV ARCH=x86-64
+ENV BUILD_ARCH=x86_64
+ENV KERNEL_ARCH=x86_64
+ENV TARGET=x86_64-hadron-linux-musl
+ENV BUILD=x86_64-pc-linux-musl
 ENV COMMON_CONFIGURE_ARGS="--quiet --prefix=/usr --host=${TARGET} --build=${BUILD} --enable-lto --enable-shared --disable-static"
 ENV CFLAGS="${CFLAGS} -Os -pipe -fomit-frame-pointer -fno-unroll-loops -fno-asynchronous-unwind-tables"
 # TODO: we should set -march=x86-64-v2 to avoid compiling for old CPUs. Save space and its faster.
