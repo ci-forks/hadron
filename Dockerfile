@@ -540,10 +540,12 @@ ENV BUSYBOX_VERSION=${BUSYBOX_VERSION}
 
 COPY --from=sources-downloader /sources/downloads/busybox-${BUSYBOX_VERSION}.tar.bz2 /sources/ 
 
-RUN . /arch-env.sh && cd /sources && tar -xf busybox-${BUSYBOX_VERSION}.tar.bz2 && \
+RUN . /arch-env.sh && \
+    TARGET=${BUILD_ARCH}-${VENDOR}-linux-musl && \
+    cd /sources && tar -xf busybox-${BUSYBOX_VERSION}.tar.bz2 && \
     cd busybox-${BUSYBOX_VERSION} && \
     make -s distclean && \
-    make -s ARCH="${ARCH}" defconfig && \
+    make -s ARCH="${BUILD_ARCH}" defconfig && \
     sed -i 's/\(CONFIG_\)\(.*\)\(INETD\)\(.*\)=y/# \1\2\3\4 is not set/g' .config && \
     sed -i 's/\(CONFIG_IFPLUGD\)=y/# \1 is not set/' .config && \
     sed -i 's/\(CONFIG_FEATURE_WTMP\)=y/# \1 is not set/' .config && \
@@ -551,8 +553,8 @@ RUN . /arch-env.sh && cd /sources && tar -xf busybox-${BUSYBOX_VERSION}.tar.bz2 
     sed -i 's/\(CONFIG_UDPSVD\)=y/# \1 is not set/' .config && \
     sed -i 's/\(CONFIG_TCPSVD\)=y/# \1 is not set/' .config && \
     sed -i 's/\(CONFIG_TC\)=y/# \1 is not set/' .config && \
-    make -s ARCH="${ARCH}" CROSS_COMPILE="${TARGET}-" -j${JOBS} && \
-    make -s ARCH="${ARCH}" CROSS_COMPILE="${TARGET}-" -j${JOBS} CONFIG_PREFIX="/sysroot" install
+    make -s ARCH="${BUILD_ARCH}" CROSS_COMPILE="${TARGET}-" -j${JOBS} && \
+    make -s ARCH="${BUILD_ARCH}" CROSS_COMPILE="${TARGET}-" -j${JOBS} CONFIG_PREFIX="/sysroot" install
 
 ###
 ### MUSL
