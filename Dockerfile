@@ -1447,8 +1447,8 @@ RUN ./configure --quiet ${COMMON_CONFIGURE_ARGS} \
     --disable-nls \
     --with-libexpat-prefix=/usr \
     --disable-multilib
-RUN . /arch-env.sh && make ARCH="${ARCH}" CROSS_COMPILE="${TARGET}-" -j${JOBS}
-RUN . /arch-env.sh && make ARCH="${ARCH}" CROSS_COMPILE="${TARGET}-" -j${JOBS} DESTDIR=/gdb install install-gdbserver
+RUN make -j${JOBS}
+RUN make -j${JOBS} DESTDIR=/gdb install install-gdbserver
 
 
 ## dbus first pass without systemd support so we can build systemd afterwards
@@ -2593,7 +2593,7 @@ RUN tar -xf multipath-tools.tar.gz && mv multipath-tools-* multipath-tools
 WORKDIR /sources/multipath-tools
 ENV CC="gcc"
 COPY files/0001-multipathd-Dont-pthread_join-twice.patch /sources/multipath-tools/0001-multipathd-Dont-pthread_join-twice.patch
-RUN patch -p1 </sources/multipath-tools/0001-multipathd-Dont-pthread_join-twice.patch
+RUN patch -p1 </sources/multipath-tools/0001-multipathd-Dont-pthread_join-twice.patch 
 # Set lib to /lib so it works in initramfs as well
 RUN make -s -j${JOBS} sysconfdir="/etc" configdir="/etc/multipath/conf.d" LIB=/lib
 RUN make -s -j${JOBS} SYSTEMDPATH=/lib LIB=/lib install DESTDIR=/multipath-tools
