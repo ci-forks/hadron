@@ -1057,8 +1057,7 @@ RUN CFLAGS="${CFLAGS}" ./configure --quiet ${COMMON_CONFIGURE_ARGS} \
     bash_cv_getcwd_malloc=yes \
     bash_cv_job_control_missing=nomissing \
     bash_cv_sys_named_pipes=nomissing \
-    bash_cv_printf_a_format=yes \
-
+    bash_cv_printf_a_format=yes
 RUN make -s -j${JOBS} y.tab.c && make -s -j${JOBS} builtins/libbuiltins.a && make -s -j${JOBS}
 RUN mkdir -p /bash/etc/bash
 RUN install -Dm644  /sources/bashrc /bash/etc/bash.bashrc
