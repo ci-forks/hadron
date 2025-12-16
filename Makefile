@@ -1,6 +1,6 @@
 IMAGE_NAME ?= ghcr.io/kairos-io/hadron:main
 INIT_IMAGE_NAME ?= hadron-init
-AURORA_IMAGE ?= quay.io/kairos/auroraboot:v0.14.0-beta1
+AURORA_IMAGE ?= quay.io/kairos/auroraboot:v0.16.1
 TARGET ?= default
 JOBS ?= $(shell nproc)
 HADRON_VERSION ?= $(shell git describe --tags --always --dirty)
@@ -8,6 +8,7 @@ VERSION ?= v0.0.1
 BOOTLOADER ?= grub
 KERNEL_TYPE ?= default
 KEYS_DIR ?= ${PWD}/tests/assets/keys
+CURRENT_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 PROGRESS ?= none
 PROGRESS_FLAG = --progress=${PROGRESS}
 
@@ -108,14 +109,14 @@ clean:
 
 grub-iso:
 	@echo "Building BIOS ISO image..."
-	@docker run -v /var/run/docker.sock:/var/run/docker.sock -v ${PWD}/build/:/output ${AURORA_IMAGE} build-iso --output /output/ docker:${INIT_IMAGE_NAME} && \
+	@docker run --privileged -v /var/run/docker.sock:/var/run/docker.sock -v ${PWD}/build/:/output ${AURORA_IMAGE} build-iso --output /output/ docker:${INIT_IMAGE_NAME} && \
 	echo "GRUB ISO image built successfully at $$(ls -t1 build/kairos-hadron-*.iso | head -n1)"
 
 # Build an ISO image
 trusted-iso:
 	@echo "Building Trusted Boot ISO image..."
 	@docker run -v /var/run/docker.sock:/var/run/docker.sock \
-	-v ${PWD}/build/:/output \
+	-v $(CURRENT_DIR)/build/:/output \
 	-v ${KEYS_DIR}:/keys \
 	${AURORA_IMAGE} \
 	build-uki \
