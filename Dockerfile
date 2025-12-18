@@ -94,27 +94,10 @@ ENV CA_CERTIFICATES_VERSION=${CA_CERTIFICATES_VERSION}
 
 RUN cd /sources/downloads && wget -q https://gitlab.alpinelinux.org/alpine/ca-certificates/-/archive/${CA_CERTIFICATES_VERSION}/ca-certificates-${CA_CERTIFICATES_VERSION}.tar.bz2 -O ca-certificates-${CA_CERTIFICATES_VERSION}.tar.bz2
 
-ARG SYSTEMD_VERSION=257.8
+ARG SYSTEMD_VERSION=259
 ENV SYSTEMD_VERSION=${SYSTEMD_VERSION}
 
-RUN cd /sources/downloads && wget -q https://github.com/systemd/systemd/archive/refs/tags/v${SYSTEMD_VERSION}.tar.gz -O systemd-${SYSTEMD_VERSION}.tar.gz
-
-## systemd patches
-
-ARG OE_CORE_VERSION=30140cb9354fa535f68fab58e73b76f0cca342e4
-ENV OE_CORE_VERSION=${OE_CORE_VERSION}
-
-# Extract systemd and apply patches
-RUN cd /sources/downloads && tar -xvf systemd-${SYSTEMD_VERSION}.tar.gz && \
-    mv systemd-${SYSTEMD_VERSION} systemd
-RUN cd /sources/downloads && git clone https://github.com/openembedded/openembedded-core && \
-    cd openembedded-core && \
-    git checkout ${OE_CORE_VERSION}
-COPY patches/apply_all.sh /apply_all.sh
-#COPY patches/systemd/ /sources/patches/systemd
-RUN chmod +x /apply_all.sh
-RUN /apply_all.sh /sources/downloads/openembedded-core/meta/recipes-core/systemd/systemd/ /sources/downloads/systemd
-#RUN /apply_all.sh /sources/patches/systemd /sources/downloads/systemd
+RUN cd /sources/downloads && wget -q https://github.com/systemd/systemd/archive/refs/tags/v${SYSTEMD_VERSION}.tar.gz -O systemd.tar.gz
 
 ARG LIBCAP_VERSION=2.76
 ENV LIBCAP_VERSION=${LIBCAP_VERSION}
@@ -2262,16 +2245,10 @@ RUN make -s -j${JOBS} && make -s -j${JOBS} install DESTDIR=/tpm2-tss && make -s 
 ## systemd
 ## Try to build it at the end so we have most libraries already built
 ## Anything that depends on systemd should be built after this stage
-FROM rsync AS systemd-base
-
-ARG SYSTEMD_VERSION=257.8
-ENV SYSTEMD_VERSION=${SYSTEMD_VERSION}
+FROM rsync AS systemd
 
 COPY --from=gperf /gperf /gperf
 RUN rsync -aHAX --keep-dirlinks  /gperf/. /
-
-COPY --from=libcap /libcap /libcap
-RUN rsync -aHAX --keep-dirlinks  /libcap/. /
 
 COPY --from=util-linux /util-linux /util-linux
 RUN rsync -aHAX --keep-dirlinks  /util-linux/. /
@@ -2330,36 +2307,18 @@ RUN rsync -aHAX --keep-dirlinks  /lvm2/. /
 COPY --from=tpm2-tss /tpm2-tss /tpm2-tss
 RUN rsync -aHAX --keep-dirlinks  /tpm2-tss/. /
 
-COPY --from=sources-downloader /sources/downloads/systemd /sources/systemd
+COPY --from=sources-downloader /sources/downloads/systemd.tar.gz /sources/
+WORKDIR /sources
+RUN tar -xf systemd.tar.gz && mv systemd-* systemd
 RUN mkdir -p /systemd
 RUN python3 -m pip install meson ninja jinja2 pyelftools
 
-## systemd-bless and other systemd-tpm releated tools need to be ebable by setting the BOOTLOADER to true
-## but that tries to build systemd-boot as well which fails due to the missing wchar_t definition in musl
-## we avoid this by only building the bootloader in a separate stage below
-## But in here we want to build all those needed pieces, so we hack the meson.build files to remove the bootloader dependency
-## We know we are going to need them later and we are going to be using sdboot from the separate stage below so its ok
-FROM systemd-base AS systemd
 WORKDIR /sources/systemd
-ENV CFLAGS="$CFLAGS -D __UAPI_DEF_ETHHDR=0 -D _LARGEFILE64_SOURCE"
-## Superhack to get tpm2-setup binary and service to build without having bootloader=enabled
-RUN sed -i "/'name' *: *'systemd-tpm2-setup'/,/},/s/'ENABLE_BOOTLOADER', *//" src/tpm2-setup/meson.build
-## Superhack to build systemd-bless-boot binary and generator
-RUN sed -i "/'conditions' *: *\[/,/\]/s/'ENABLE_BOOTLOADER',* *//g" src/bless-boot/meson.build
-## Superhack to enable units that are linked to booloader build but we cant build them directly
-RUN sed -i "/'file' *: *'systemd-bless-boot.service.in'/,/},/s/'ENABLE_BOOTLOADER', *//" units/meson.build
-RUN sed -i "/'file' *: *'systemd-pcrextend@.service.in'/,/},/s/'ENABLE_BOOTLOADER', *//" units/meson.build
-RUN sed -i "/'file' *: *'systemd-pcrextend.socket'/,/},/s/'ENABLE_BOOTLOADER', *//" units/meson.build
-RUN sed -i "/'file' *: *'systemd-tpm2-setup.service.in'/,/},/s/'ENABLE_BOOTLOADER', *//" units/meson.build
-RUN sed -i "/'file' *: *'systemd-tpm2-setup-early.service.in'/,/},/s/'ENABLE_BOOTLOADER', *//" units/meson.build
-RUN sed -i "/'file' *: *'systemd-pcrlock@.service.in'/,/},/s/'ENABLE_BOOTLOADER', *//" units/meson.build
-RUN sed -i "/'file' *: *'systemd-pcrlock.socket'/,/},/s/'ENABLE_BOOTLOADER', *//" units/meson.build
-RUN sed -i "/'file' *: *'systemd-pcrlock.socket'/,/},/s/'ENABLE_BOOTLOADER', *//" units/meson.build
+
 RUN /usr/bin/meson setup buildDir \
       --prefix=/usr           \
       --buildtype=minsize -Dstrip=true     \
       -D dbus=enabled  \
-      -D bootloader=disabled  \
       -D tpm2=enabled          \
       -D pam=enabled \
       -D libcryptsetup=enabled  \
@@ -2387,36 +2346,16 @@ RUN /usr/bin/meson setup buildDir \
       -D dev-kvm-mode=0660    \
       -D nobody-group=nogroup \
       -D sysupdate=disabled   \
-      -Durlify=false \
-      -D ukify=disabled
+      -D libc=musl \
+      -D urlify=false \
+      -D ukify=disabled \
+      -D bootloader=true -Defi=true \
+      -D sbat-distro="Hadron" \
+      -D sbat-distro-url="hadron-linux.io" \
+      -Dsbat-distro-summary="Hadron Linux" \
+      -Dsbat-distro-version="${VERSION}"
 RUN ninja -C buildDir
 RUN DESTDIR=/systemd ninja -C buildDir install
-
-## In here we only build the sdboot files
-## with musl, we cannot compile the full systemd-boot due to missing wchar_t definition
-## and with it, we cannot compile other things
-## So we workaround by building only the bootloader in this separate stage
-## using meson to compile it (not install as that builds more stuff)
-## and copying the resulting .efi files
-FROM systemd-base AS systemd-bootloader
-ARG VERSION
-WORKDIR /sources/systemd
-ENV CFLAGS="$CFLAGS -D __UAPI_DEF_ETHHDR=0 -D _LARGEFILE64_SOURCE -D__DEFINED_wchar_t"
-RUN /usr/bin/meson setup buildDir \
-    --prefix=/usr \
-    --buildtype=minsize \
-    -D mode=release         \
-    -D strip=true -Dman=false \
-    -D bootloader=true -Defi=true \
-    -D sbat-distro="Hadron" \
-    -D sbat-distro-url="hadron.kairos.io" \
-    -Dsbat-distro-summary="Hadron Linux" \
-    -Dsbat-distro-version="${VERSION}"
-RUN /usr/bin/meson compile systemd-boot -C buildDir
-## Mimic the efi install places other distros and the full systemd install does.
-RUN mkdir -p /systemd/usr/lib/systemd/boot/efi/
-RUN cp buildDir/src/boot/*.efi /systemd/usr/lib/systemd/boot/efi/
-RUN cp buildDir/src/boot/*.efi.stub /systemd/usr/lib/systemd/boot/efi/
 
 
 FROM rsync AS dracut
@@ -3165,7 +3104,6 @@ RUN rsync -aHAX --keep-dirlinks  /dracut/. /skeleton
 RUN find /skeleton -type f -print0 | xargs -0 scanelf --nobanner --osabi --etype "ET_DYN,ET_EXEC" --format "%F" | xargs -r strip --strip-unneeded
 
 
-
 ### Assemble the image depending on our bootloader
 ## either grub or systemd-boot for trusted boot
 ## To not merge things and have extra software where we dont want it we prepare a base image with all the
@@ -3187,8 +3125,6 @@ RUN apk add rsync
 COPY --from=container / /skeleton
 COPY --from=full-image-merge /skeleton /stage2-merge
 RUN rsync -aHAX --keep-dirlinks  /stage2-merge/. /skeleton/
-COPY --from=systemd-bootloader /systemd /systemd
-RUN rsync -aHAX --keep-dirlinks  /systemd/. /skeleton/
 # No dracut for systemd-boot
 
 ## Final image for grub
