@@ -42,6 +42,17 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa.pub
 
+          git config --global user.name "$GIT_AUTHOR_NAME"
+          git config --global user.email "$GIT_AUTHOR_EMAIL"
+
+          # Ensure fork exists before cloning
+          if ! gh repo view ci-forks/hadron > /dev/null 2>&1; then
+            echo "Fork does not exist. Creating fork..."
+            gh repo fork kairos-io/hadron --clone=false --remote=false --org ci-forks
+          else
+            echo "Fork already exists."
+          fi
+
           git clone $FORK_REPO fork
           cd fork
           git remote add upstream $UPSTREAM_REPO
@@ -58,8 +69,7 @@ jobs:
           bump update
           
           git add Dockerfile
-          git commit -s -m "Bump packages"
-          git push -f -v origin $BRANCH_NAME
+          git commit -s --author="$GIT_AUTHOR_NAME <$GIT_AUTHOR_EMAIL>" -m "Bump packages"
+          git push -f -v origin $WORK_BRANCH
           gh pr create --title "Automatic version bumps" --body "This PR contains automatic version bumps." --head $WORK_BRANCH --base main
-          
           
