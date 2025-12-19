@@ -15,6 +15,18 @@ jobs:
         run: |
           go install github.com/wader/bump/cmd/bump@latest
       - name: Bump version and create PR
+        env:
+          TOKEN: ${{ secrets.PAT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+          GITHUB_PRIVATE_KEY: "${{ secrets.BOT_PRIVATE_KEY }}"
+          GITHUB_PUBLIC_KEY: "${{ secrets.BOT_PUBLIC_KEY }}"
+          GIT_AUTHOR_NAME: "ci-robbot"
+          GIT_AUTHOR_EMAIL: robot@c3os.io
+          GIT_COMMITTER_NAME: "ci-robbot"
+          GIT_COMMITTER_EMAIL: robot@c3os.io
+          WORK_BRANCH: bumps
+          UPSTREAM_REPO: "https://github.com/kairos-io/hadron"
+          FORK_REPO: "git@github.com:ci-forks/hadron.git"
         run: |
           unset GITHUB_ACTION
           
@@ -22,14 +34,32 @@ jobs:
           echo "$(bump diff)" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           
+          mkdir -p $HOME/.ssh
+          mkdir -p $HOME/.config
+          echo "$GITHUB_PRIVATE_KEY" > $HOME/.ssh/id_rsa
+          echo "$GITHUB_PUBLIC_KEY" > $HOME/.ssh/id_rsa.pub
+          chmod 700 ~/.ssh
+          chmod 600 ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa.pub
+
+          git clone $FORK_REPO fork
+          cd fork
+          git remote add upstream $UPSTREAM_REPO
+          git fetch --all
+          git reset --hard upstream/main
+          git push -fv
+          echo "Removing working branch if present"
+          git branch -D $WORK_BRANCH || true
+
+          git checkout -b $WORK_BRANCH
+          git reset --hard upstream/main
+          git push -fv -u origin $WORK_BRANCH
+          
           bump update
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v8
-        with:
-          signoff: true
-          title: 'chore: bump version'
-          body: 'Automated version bump'
-          team-reviewers: 'kairos-io/maintainers'
-          base: 'main'
-          add-paths: |
-            Dockerfile
+          
+          git add Dockerfile
+          git commit -s -m "Bump packages"
+          git push -f -v origin $BRANCH_NAME
+          gh pr create --title "Automatic version bumps" --body "This PR contains automatic version bumps." --head $WORK_BRANCH --base main
+          
+          
