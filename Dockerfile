@@ -5,6 +5,7 @@ ARG BOOTLOADER=grub
 ARG KERNEL_TYPE=default
 ARG VERSION=0.0.1
 ARG JOBS=24
+ARG FIPS="no-fips"
 
 ARG ALPINE_VERSION=3.23.2
 ARG CFLAGS
@@ -95,7 +96,9 @@ ARG SQLITE3_VERSION=3.51.1
 RUN wget -q https://github.com/sqlite/sqlite/archive/refs/tags/version-${SQLITE3_VERSION}.tar.gz -O sqlite3.tar.gz
 
 ARG OPENSSL_VERSION=3.6.0
+ARG OPENSSL_FIPS_VERSION=3.1.2
 RUN wget -q https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz  -O openssl.tar.gz
+RUN wget -q https://www.openssl.org/source/openssl-${OPENSSL_FIPS_VERSION}.tar.gz  -O openssl-fips.tar.gz
 
 ARG OPENSSH_VERSION=10.0p1
 RUN wget -q https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-${OPENSSH_VERSION}.tar.gz -O openssh.tar.gz
@@ -357,6 +360,8 @@ RUN for i in $(seq -w 1 ${PATCH_LEVEL}); do \
     done
 WORKDIR /sources/downloads
 
+ARG LIBKKCAPI_VERSION=1.5.0
+RUN wget -q https://github.com/smuellerDD/libkcapi/archive/refs/tags/v${LIBKKCAPI_VERSION}.tar.gz -O libkcapi.tar.gz
 
 FROM stage0 AS skeleton
 
@@ -872,7 +877,7 @@ RUN mkdir -p /sources && cd /sources && tar -xf libcap.tar.xz && mv libcap-* lib
     make -s -j${JOBS} DESTDIR=/libcap PAM_LIBDIR=/lib prefix=/usr SBINDIR=/sbin lib=lib RAISE_SETFCAP=no GOLANG=no install && make -s -j${JOBS} GOLANG=no PAM_LIBDIR=/lib lib=lib prefix=/usr SBINDIR=/sbin RAISE_SETFCAP=no install
 
 ## openssl
-FROM rsync AS openssl
+FROM rsync AS openssl-no-fips
 ARG JOBS
 COPY --from=perl /perl /perl
 RUN rsync -aHAX --keep-dirlinks  /perl/. /
@@ -881,19 +886,68 @@ COPY --from=zlib /zlib /zlib
 RUN rsync -aHAX --keep-dirlinks  /zlib/. /
 
 COPY --from=sources-downloader /sources/downloads/openssl.tar.gz /sources/
-
-RUN cd /sources && tar -xf openssl.tar.gz && mv openssl-* openssl && \
-    cd openssl && mkdir -p /openssl && ./Configure --prefix=/usr         \
+WORKDIR /sources
+RUN tar -xf openssl.tar.gz && mv openssl-* openssl
+WORKDIR /sources/openssl
+RUN ./Configure --prefix=/usr         \
     --openssldir=/etc/ssl \
     --libdir=lib          \
-    shared zlib-dynamic 2>&1 && \
-    make -s -j${JOBS} DESTDIR=/openssl 2>&1  && \
-    make -s -j${JOBS} DESTDIR=/openssl install_sw install_ssldirs && make -s -j${JOBS} install_sw install_ssldirs
+    shared zlib-dynamic 2>&1
+RUN make -s -j${JOBS} DESTDIR=/openssl 2>&1
+RUN make -s -j${JOBS} DESTDIR=/openssl install_sw install_ssldirs && make -s -j${JOBS} install_sw install_ssldirs
+
+FROM rsync AS openssl-fips
+
+ARG JOBS
+COPY --from=perl /perl /perl
+RUN rsync -aHAX --keep-dirlinks  /perl/. /
+
+COPY --from=zlib /zlib /zlib
+RUN rsync -aHAX --keep-dirlinks  /zlib/. /
+
+COPY --from=sources-downloader /sources/downloads/openssl-fips.tar.gz /sources/
+WORKDIR /sources
+RUN tar -xf openssl-fips.tar.gz && rm openssl-fips.tar.gz && mv openssl-* openssl-fips
+WORKDIR /sources/openssl-fips
+RUN ./Configure --prefix=/usr         \
+    --openssldir=/etc/ssl \
+    --libdir=lib          \
+    enable-fips \
+    enable-ktls \
+    shared \
+    no-async \
+    no-comp \
+    no-idea \
+    no-mdc2 \
+    no-rc5 \
+    no-ec2m \
+    no-ssl3 \
+    no-seed \
+    no-weak-ssl-ciphers \
+    zlib-dynamic \
+     2>&1
+RUN make -s -j${JOBS} DESTDIR=/openssl 2>&1
+RUN ./util/wrap.pl -fips apps/openssl list -provider-path providers -provider fips -providers | grep -A3 FIPS| grep -q active
+RUN make -j${JOBS} DESTDIR=/openssl install_sw install_ssldirs
+RUN make -j${JOBS} DESTDIR=/openssl install_fips
+COPY ./files/openssl/openssl.cnf.fips /openssl/etc/ssl/openssl.cnf
+
+FROM openssl-${FIPS} AS openssl
 
 ## Busybox (from stage1, ready to be used in the final image)
 ## with a tiny config as we have other tools
-FROM openssl AS busybox
+FROM rsync AS busybox
 ARG JOBS
+
+COPY --from=perl /perl /perl
+RUN rsync -aHAX --keep-dirlinks  /perl/. /
+
+COPY --from=zlib /zlib /zlib
+RUN rsync -aHAX --keep-dirlinks  /zlib/. /
+
+COPY --from=openssl /openssl /openssl
+RUN rsync -aHAX --keep-dirlinks  /openssl/. /
+
 COPY --from=busybox-stage0 /sources /sources
 
 WORKDIR /sources
@@ -1545,6 +1599,36 @@ RUN make -s -j${JOBS} BUILD_CC=gcc CC="${CC:-gcc}" lib=lib prefix=/usr GOLANG=no
 RUN make -s -j${JOBS} DESTDIR=/diffutils install
 RUN make -s -j${JOBS} install
 
+FROM rsync AS libkcapi
+ARG JOBS
+COPY --from=autoconf /autoconf /autoconf
+RUN rsync -aHAX --keep-dirlinks  /autoconf/. /
+COPY --from=automake /automake /automake
+RUN rsync -aHAX --keep-dirlinks  /automake/. /
+COPY --from=libtool /libtool /libtool
+RUN rsync -aHAX --keep-dirlinks  /libtool/. /
+COPY --from=m4 /m4 /m4
+RUN rsync -aHAX --keep-dirlinks  /m4/. /
+COPY --from=perl /perl /perl
+RUN rsync -aHAX --keep-dirlinks  /perl/. /
+COPY --from=pkgconfig /pkgconfig /pkgconfig
+RUN rsync -aHAX --keep-dirlinks  /pkgconfig/. /
+COPY --from=openssl /openssl /openssl
+RUN rsync -aHAX --keep-dirlinks  /openssl/. /
+COPY --from=coreutils /coreutils /coreutils
+RUN rsync -aHAX --keep-dirlinks  /coreutils/. /
+COPY --from=libcap /libcap /libcap
+RUN rsync -aHAX --keep-dirlinks  /libcap/. /
+COPY --from=sources-downloader /sources/downloads/libkcapi.tar.gz /sources/
+RUN mkdir -p /libkcapi
+WORKDIR /sources
+RUN tar -xf libkcapi.tar.gz && mv libkcapi-* libkcapi
+WORKDIR /sources/libkcapi
+RUN autoreconf -i
+RUN ./configure ${COMMON_CONFIGURE_ARGS} --disable-dependency-tracking --prefix=/usr --disable-static --enable-shared --disable-werror --enable-kcapi-hasher --disable-lib-kdf --disable-lib-sym --disable-lib-aead --disable-lib-rng
+RUN make -s -j${JOBS} && make -s -j${JOBS} install LIBDIR=lib BINDIR=/bin DESTDIR=/libkcapi
+RUN ln -s kcapi-hasher /libkcapi/usr/bin/sha512hmac
+RUN rm -Rf /libkcapi/usr/share /libkcapi/usr/lib/pkgconfig /libkcapi/usr/include /libkcapi/usr/libexec /libkcapi/usr/lib/*.la
 ## kernel
 FROM rsync AS kernel-base
 ARG JOBS
@@ -1600,17 +1684,37 @@ FROM kernel-base AS kernel-default
 WORKDIR /sources/kernel
 RUN cp -rfv /sources/kernel-configs/default.config .config
 
-FROM kernel-${KERNEL_TYPE} AS kernel
+FROM kernel-${KERNEL_TYPE} AS kernel-build
 ARG JOBS
 WORKDIR /sources/kernel
 ENV ARCH=x86_64
 # This only builds the kernel
-RUN LOCALVERSION="-${VENDOR}" make -s -j${JOBS} bzImage
-RUN cp arch/$ARCH/boot/bzImage /kernel/vmlinuz
+RUN make -s -j${JOBS} bzImage
+RUN make -s -j${JOBS} kernelrelease > /kernel/kernel-version
+RUN kver=$(cat /kernel/kernel-version) && cp arch/$ARCH/boot/bzImage /kernel/vmlinuz-${kver}
+# link vmlinuz to our kernel
+RUN ln -sfv /kernel/vmlinuz-$(cat /kernel/kernel-version) /kernel/vmlinuz
 
+FROM kernel-build AS kernel-no-fips
+# Nothing to do here, just a placeholder
+
+
+# This will generate the needed FIPS HMAC for the kernel so dracut can verify it
+FROM kernel-build AS kernel-fips
+WORKDIR /sources/
+COPY --from=libkcapi /libkcapi /libkcapi
+RUN rsync -aHAX --keep-dirlinks  /libkcapi/. /
+# Use generate the HMAC for the kernel, make sure to set the path to the runtime path
+RUN kver=$(cat /kernel/kernel-version) && sha512hmac /kernel/vmlinuz-${kver} | sed 's|  /kernel/|  /boot/|' > /kernel/.vmlinuz-${kver}.hmac
+RUN kver=$(cat /kernel/kernel-version) && chmod 0644 /kernel/.vmlinuz-${kver}.hmac
+
+FROM kernel-${FIPS} AS kernel
+
+FROM kernel-build AS kernel-modules
 # This builds the modules
-RUN LOCALVERSION="-${VENDOR}" make -s -j${JOBS} modules
-RUN LOCALVERSION="-${VENDOR}" ZSTD_CLEVEL=19 INSTALL_MOD_PATH="/modules" INSTALL_MOD_STRIP=1 DEPMOD=true make -s -j${JOBS} modules_install
+ENV ARCH=x86_64
+RUN make -s -j${JOBS} modules
+RUN ZSTD_CLEVEL=19 INSTALL_MOD_PATH="/modules" INSTALL_MOD_STRIP=1 DEPMOD=true make -s -j${JOBS} modules_install
 
 FROM kernel-base AS kernel-headers
 ARG JOBS
@@ -1848,8 +1952,6 @@ FROM rsync AS cryptsetup
 ARG JOBS
 COPY --from=pkgconfig /pkgconfig /pkgconfig
 RUN rsync -aHAX --keep-dirlinks  /pkgconfig/. /
-COPY --from=openssl /openssl /openssl
-RUN rsync -aHAX --keep-dirlinks  /openssl/. /
 COPY --from=lvm2 /lvm2 /lvm2
 RUN rsync -aHAX --keep-dirlinks  /lvm2/. /
 COPY --from=openssl /openssl /openssl
@@ -2556,11 +2658,6 @@ RUN rsync -aHAX --keep-dirlinks  /coreutils/. /skeleton/
 COPY --from=curl /curl /curl
 RUN rsync -aHAX --keep-dirlinks  /curl/. /skeleton/
 
-## OpenSSL
-COPY --from=openssl /openssl /openssl
-RUN rsync -aHAX --keep-dirlinks  /openssl/. /skeleton/
-
-
 ## ca-certificates
 COPY --from=ca-certificates /ca-certificates /ca-certificates
 RUN rsync -aHAX --keep-dirlinks  /ca-certificates/. /skeleton/
@@ -2641,6 +2738,10 @@ COPY --from=sources-downloader /sources/downloads/aports.tar.gz /
 RUN tar xf /aports.tar.gz && mv aports-* aports
 RUN cp /aports/main/musl/ldconfig /skeleton/usr/bin/ldconfig
 
+## OpenSSL
+COPY --from=openssl /openssl /openssl
+RUN rsync -aHAX --keep-dirlinks  /openssl/. /skeleton/
+
 # make sure they are both executable
 RUN chmod 755 /skeleton/sbin/ldconfig
 
@@ -2660,7 +2761,7 @@ RUN rm -rf /skeleton/usr/share/local/info
 RUN find /skeleton -name '*.a' -delete
 
 # Strip binaries
-RUN find /skeleton -type f -print0 | xargs -0 scanelf --nobanner --osabi --etype "ET_DYN,ET_EXEC" --format "%F" | xargs -r strip --strip-unneeded
+RUN find /skeleton -type f ! -name 'fips.so' -print0 | xargs -0 scanelf --nobanner --osabi --etype "ET_DYN,ET_EXEC" --format "%F" | xargs -r strip --strip-unneeded
 
 
 # Remove python artifacts
@@ -2699,17 +2800,19 @@ RUN ldd /bin/bash
 
 # stage2-merge is where we prepare stuff for the final image
 # more complete, this has systemd, sudo, openssh, iptables, kernel, etc..
-FROM alpine:${ALPINE_VERSION} AS full-image-merge
+FROM alpine:${ALPINE_VERSION} AS full-image-merge-base
 RUN apk add rsync pax-utils binutils
 
+COPY --from=openssl /openssl /openssl
+RUN rsync -aHAX --keep-dirlinks  /openssl/. /skeleton/
 
 ## openssh
 COPY --from=openssh /openssh /openssh
 RUN rsync -aHAX --keep-dirlinks  /openssh/. /skeleton/
 
 # kernel and modules
-COPY --from=kernel /kernel/vmlinuz /skeleton/boot/vmlinuz
-COPY --from=kernel /modules/lib/modules/ /skeleton/lib/modules
+COPY --from=kernel /kernel/ /skeleton/boot/
+COPY --from=kernel-modules /modules/lib/modules/ /skeleton/lib/modules
 
 COPY --from=sudo-systemd /sudo /sudo
 RUN rsync -aHAX --keep-dirlinks  /sudo/. /skeleton
@@ -2791,13 +2894,23 @@ COPY --from=tpm2-tss /tpm2-tss /tpm2-tss
 RUN rsync -aHAX --keep-dirlinks  /tpm2-tss/. /skeleton
 
 # Strip binaries
-RUN find /skeleton -type f -print0 | xargs -0 scanelf --nobanner --osabi --etype "ET_DYN,ET_EXEC" --format "%F" | xargs -r strip --strip-unneeded
+RUN find /skeleton -type f ! -name 'fips.so' -print0 | xargs -0 scanelf --nobanner --osabi --etype "ET_DYN,ET_EXEC" --format "%F" | xargs -r strip --strip-unneeded
 
 
 # Remove python artifacts
 RUN find /skeleton -name "*.pyc" -delete
 RUN find /skeleton -name "__pycache__" -type d -exec rm -rf {} +
 
+
+FROM full-image-merge-base AS full-image-merge-no-fips
+# no-op
+
+FROM full-image-merge-base AS full-image-merge-fips
+COPY --from=libkcapi /libkcapi /libkcapi
+RUN rsync -aHAX --keep-dirlinks  /libkcapi/. /skeleton
+
+
+FROM full-image-merge-${FIPS} AS full-image-merge
 
 ## This target will assemble dracut and all its dependencies into the skeleton
 FROM stage0 AS dracut-final
@@ -2836,7 +2949,7 @@ RUN rsync -aHAX --keep-dirlinks  /dracut/. /skeleton
 
 # Strip binaries
 # As this is added to the full-image-merge we still have to strip binaries here
-RUN find /skeleton -type f -print0 | xargs -0 scanelf --nobanner --osabi --etype "ET_DYN,ET_EXEC" --format "%F" | xargs -r strip --strip-unneeded
+RUN find /skeleton -type f ! -name 'fips.so' -print0 | xargs -0 scanelf --nobanner --osabi --etype "ET_DYN,ET_EXEC" --format "%F" | xargs -r strip --strip-unneeded
 
 
 ### Assemble the image depending on our bootloader
