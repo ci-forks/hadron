@@ -8,6 +8,7 @@ ARG JOBS=16
 ## Maximum load for make -l
 ARG MAX_LOAD=32
 ARG FIPS="no-fips"
+ARG TARGETARCH
 
 ARG ALPINE_VERSION=3.23.2
 ARG CFLAGS
@@ -30,6 +31,10 @@ ARG JOBS
 ENV JOBS=${JOBS}
 ARG MUSSEL_VERSION="95dec40aee2077aa703b7abc7372ba4d34abb889"
 ENV MUSSEL_VERSION=${MUSSEL_VERSION}
+
+# Validate that the arches are correct
+RUN if [ "${ARCH}" = "x86-64" ] && [ "${BUILD_ARCH}" != "x86_64" ]; then echo "For ARCH x86-64, BUILD_ARCH must be x86_64"; exit 1; fi
+RUN if [ "${ARCH}" = "aarch64" ] && [ "${BUILD_ARCH}" != "aarch64" ]; then echo "For ARCH aarch64, BUILD_ARCH must be aarch64"; exit 1; fi
 
 RUN apk update && apk add git bash wget bash perl build-base make patch busybox-static curl m4 xz texinfo bison gawk gzip zstd-dev coreutils bzip2 tar rsync
 RUN git clone https://github.com/firasuke/mussel.git && cd mussel && git checkout ${MUSSEL_VERSION} -b build
@@ -355,6 +360,12 @@ WORKDIR /sources/downloads
 ARG LIBKKCAPI_VERSION=1.5.0
 RUN wget -q https://github.com/smuellerDD/libkcapi/archive/refs/tags/v${LIBKKCAPI_VERSION}.tar.gz -O libkcapi.tar.gz
 
+ARG SHIM_VERSION=16.1
+RUN wget -q https://github.com/rhboot/shim/releases/download/${SHIM_VERSION}/shim-${SHIM_VERSION}.tar.bz2 -O shim.tar.bz2
+
+ARG ICONV_VERSION=1.18
+RUN wget -q https://ftpmirror.gnu.org/libiconv/libiconv-${ICONV_VERSION}.tar.gz -O libiconv.tar.gz
+
 FROM stage0 AS skeleton
 
 COPY ./setup_rootfs.sh ./setup_rootfs.sh
@@ -384,6 +395,7 @@ RUN cd /sources && tar -xf busybox.tar.bz2 && \
     sed -i 's/\(CONFIG_UDPSVD\)=y/# \1 is not set/' .config && \
     sed -i 's/\(CONFIG_TCPSVD\)=y/# \1 is not set/' .config && \
     sed -i 's/\(CONFIG_TC\)=y/# \1 is not set/' .config && \
+    if [ "${ARCH}" == "aarch64" ]; then sed -i 's/\(CONFIG_SHA1_HWACCEL\)=y/# \1 is not set/' .config; fi && \
     make -s ARCH="${ARCH}" CROSS_COMPILE="${TARGET}-" -j${JOBS} -l${MAX_LOAD} && \
     make -s ARCH="${ARCH}" CROSS_COMPILE="${TARGET}-" -j${JOBS} -l${MAX_LOAD} CONFIG_PREFIX="/sysroot" install
 
@@ -533,12 +545,15 @@ RUN cp aports/main/musl/ldconfig /skeleton/usr/bin/ldconfig && chmod +x /skeleto
 FROM scratch AS stage1
 
 ARG VENDOR="hadron"
-ARG ARCH="x86-64"
-ARG BUILD_ARCH="x86_64"
-ARG CFLAGS
 ENV VENDOR=${VENDOR}
+ARG ARCH="x86-64"
+ENV ARCH=${ARCH}
+ARG BUILD_ARCH="x86_64"
+ARG BUILD_ARCH
 ENV BUILD_ARCH=${BUILD_ARCH}
+ARG TARGET
 ENV TARGET=${BUILD_ARCH}-${VENDOR}-linux-musl
+ARG BUILD
 ENV BUILD=${BUILD_ARCH}-pc-linux-musl
 # Point to GCC wrappers so it understand the lto=auto flags
 ENV AR="gcc-ar"
@@ -546,7 +561,7 @@ ENV NM="gcc-nm"
 ENV RANLIB="gcc-ranlib"
 ENV COMMON_CONFIGURE_ARGS="--quiet --prefix=/usr --host=${TARGET} --build=${BUILD} --enable-lto --enable-shared --disable-static"
 # Standard aggressive size optimization flags
-ENV CFLAGS="${CFLAGS} -Os -pipe -fomit-frame-pointer -fno-unroll-loops -fno-asynchronous-unwind-tables -ffunction-sections -fdata-sections -flto=auto"
+ENV CFLAGS="-Os -pipe -fomit-frame-pointer -fno-unroll-loops -fno-asynchronous-unwind-tables -ffunction-sections -fdata-sections -flto=auto"
 ENV LDFLAGS="-Wl,--gc-sections -Wl,--as-needed -flto=auto"
 # TODO: we should set -march=x86-64-v2 to avoid compiling for old CPUs. Save space and its faster.
 
@@ -694,7 +709,6 @@ RUN make -s -j${JOBS} -l${MAX_LOAD} DESTDIR=/zlib install
 RUN make -s -j${JOBS} -l${MAX_LOAD} install
 
 ## gawk
-
 FROM zlib AS gawk
 ARG JOBS
 COPY --from=sources-downloader /sources/downloads/gawk.tar.xz /sources/
@@ -741,6 +755,9 @@ WORKDIR /sources/binutils
 ENV AR=ar
 ENV GCC=gcc
 ENV AS=as
+ENV STRIP=strip
+ENV NM=nm
+ENV RANLIB=ranlib
 RUN ./configure ${COMMON_CONFIGURE_ARGS}
 RUN make -s -j${JOBS} -l${MAX_LOAD} DESTDIR=/binutils
 RUN make -s -j${JOBS} -l${MAX_LOAD} DESTDIR=/binutils install
@@ -777,7 +794,6 @@ ARG JOBS
 ENV CFLAGS="${CFLAGS} -static -ffunction-sections -fdata-sections -Bsymbolic-functions"
 ENV LDFLAGS="-Wl,--gc-sections"
 ENV PERL_CROSS=1.6.2
-
 COPY --from=sources-downloader /sources/downloads/perl.tar.xz /sources/
 RUN cd /sources && \
     tar -xf perl.tar.xz && mv perl-* perl && \
@@ -943,29 +959,20 @@ COPY ./files/openssl/openssl.cnf.fips /openssl/etc/ssl/openssl.cnf
 
 FROM openssl-${FIPS} AS openssl
 
-## Busybox (from stage1, ready to be used in the final image)
+## Busybox from scratch, minimalist build for final image
 ## with a tiny config as we have other tools
-FROM rsync AS busybox
+FROM stage1 AS busybox
 ARG JOBS
 # Drop lto from busybox build as its causing issues in some environments
 ENV CFLAGS="${CFLAGS//-flto=auto/}"
 
-COPY --from=perl /perl /perl
-RUN rsync -aHAX --keep-dirlinks  /perl/. /
-
-COPY --from=zlib /zlib /zlib
-RUN rsync -aHAX --keep-dirlinks  /zlib/. /
-
-COPY --from=openssl /openssl /openssl
-RUN rsync -aHAX --keep-dirlinks  /openssl/. /
-
-COPY --from=busybox-stage0 /sources /sources
-
+COPY --from=sources-downloader /sources/downloads/busybox.tar.bz2 /sources/
 WORKDIR /sources
 RUN rm -rfv busybox && tar -xf busybox.tar.bz2 && mv busybox-* busybox
 WORKDIR /sources/busybox
+RUN make -s distclean
 COPY ./files/busybox/minimal.config .config
-RUN make oldconfig
+RUN make -j${JOBS} -l${MAX_LOAD} silentoldconfig
 RUN make -s -j${JOBS} -l${MAX_LOAD} CONFIG_PREFIX="/sysroot" install
 RUN make -s -j${JOBS} -l${MAX_LOAD} install
 
@@ -1616,20 +1623,39 @@ RUN tar -xf linux.tar.xz && mv linux-* kernel
 
 FROM kernel-base AS kernel-cloud
 WORKDIR /sources/kernel
-RUN cp -rfv /sources/kernel-configs/cloud.config .config
+RUN if [ ${ARCH} = "aarch64" ] ; then \
+    cp -rfv /sources/kernel-configs/cloud-arm64.config .config ; \
+    else \
+    cp -rfv /sources/kernel-configs/cloud.config .config ; \
+    fi
 
 FROM kernel-base AS kernel-default
 WORKDIR /sources/kernel
-RUN cp -rfv /sources/kernel-configs/default.config .config
+RUN if [ ${ARCH} = "aarch64" ] ; then \
+    cp -rfv /sources/kernel-configs/default-arm64.config .config ; \
+    else \
+    cp -rfv /sources/kernel-configs/default.config .config ; \
+    fi
 
 FROM kernel-${KERNEL_TYPE} AS kernel-build
 ARG JOBS
 WORKDIR /sources/kernel
-ENV ARCH=x86_64
 # This only builds the kernel
-RUN make -s -j${JOBS} -l${MAX_LOAD} bzImage
-RUN make -s -j${JOBS} -l${MAX_LOAD} kernelrelease > /kernel/kernel-version
-RUN kver=$(cat /kernel/kernel-version) && cp arch/$ARCH/boot/bzImage /kernel/vmlinuz-${kver}
+RUN if [ ${ARCH} = "aarch64" ]; then \
+    ARCH=arm64 make -s -j${JOBS} -l${MAX_LOAD} Image; \
+    else \
+    ARCH=x86_64 make -s -j${JOBS} -l${MAX_LOAD} bzImage; \
+    fi
+RUN if [ ${ARCH} = "aarch64" ]; then \
+    export ARCH=arm64; \
+    else \
+    export ARCH=x86_64;\
+    fi;  make -s -j${JOBS} kernelrelease > /kernel/kernel-version
+RUN if [ ${ARCH} = "aarch64" ]; then \
+    ARCH=arm64 kver=$(cat /kernel/kernel-version) && cp arch/$ARCH/boot/Image /kernel/vmlinuz-${kver}; \
+    else \
+    ARCH=x86_64 kver=$(cat /kernel/kernel-version) && cp arch/$ARCH/boot/bzImage /kernel/vmlinuz-${kver};\
+    fi
 # link vmlinuz to our kernel
 RUN ln -sfv /kernel/vmlinuz-$(cat /kernel/kernel-version) /kernel/vmlinuz
 
@@ -1650,16 +1676,26 @@ FROM kernel-${FIPS} AS kernel
 
 FROM kernel-build AS kernel-modules
 # This builds the modules
-ENV ARCH=x86_64
-RUN make -s -j${JOBS} -l${MAX_LOAD} modules
-RUN ZSTD_CLEVEL=19 INSTALL_MOD_PATH="/modules" INSTALL_MOD_STRIP=1 DEPMOD=true make -s -j${JOBS} -l${MAX_LOAD} modules_install
+RUN if [ ${ARCH} = "aarch64" ]; then \
+    export ARCH=arm64; \
+    else \
+    export ARCH=x86_64;\
+    fi;  make -s -j${JOBS} -l${MAX_LOAD} modules
+RUN if [ ${ARCH} = "aarch64" ]; then \
+    export ARCH=arm64; \
+    else \
+    export ARCH=x86_64;\
+    fi;  ZSTD_CLEVEL=19 INSTALL_MOD_PATH="/modules" INSTALL_MOD_STRIP=1 DEPMOD=true make -s -j${JOBS} -l${MAX_LOAD} modules_install
 
 FROM kernel-base AS kernel-headers
 ARG JOBS
-ENV ARCH=x86_64
 WORKDIR /sources/kernel
 # This installs the headers
-RUN LOCALVERSION="-${VENDOR}" make -s -j${JOBS} -l${MAX_LOAD} headers_install INSTALL_HDR_PATH=/linux-headers
+RUN if [ ${ARCH} = "aarch64" ]; then \
+    export ARCH=arm64; \
+    else \
+    export ARCH=x86_64;\
+    fi; make -s -j${JOBS} -l${MAX_LOAD} headers_install INSTALL_HDR_PATH=/linux-headers
 
 ## kbd for setting the console keymap and font
 FROM rsync AS kbd
@@ -1995,7 +2031,7 @@ RUN ./configure ${COMMON_CONFIGURE_ARGS} --with-platform=efi --disable-efiemu --
 RUN make -s -j${JOBS} -l${MAX_LOAD} && make -s -j${JOBS} -l${MAX_LOAD} install-strip DESTDIR=/grub-efi
 # Build grub.efi file for Hadron (no signed shim, so we use grub directly as bootx64.efi)
 # The prefix ($root)/boot/grub2 is a runtime expression that grub will resolve at boot time
-RUN if [ "${BUILD_ARCH}" = "arm64" ]; then \
+RUN if [ "${ARCH}" = "aarch64" ]; then \
 		grub_format="arm64-efi"; \
 		grub_efi_name="grubaa64.efi"; \
 	else \
@@ -2004,11 +2040,11 @@ RUN if [ "${BUILD_ARCH}" = "arm64" ]; then \
 	fi && \
 	/grub-efi/usr/bin/grub-mkimage -O ${grub_format} \
 		-d /grub-efi/usr/lib/grub/${grub_format} \
-		-p '($root)/boot/grub2' \
+		--prefix= \
 		-o /grub-efi/usr/lib/grub/${grub_format}/${grub_efi_name} \
-		loopback squash4 xzio gzio regexp
-
-
+		loopback cat squash4 xzio gzio serial regexp part_gpt ext2 fat normal \
+        boot configfile part_msdos linux echo search search_label search_fs_uuid \
+        search_fs_file chain loadenv gfxterm all_video iso9660 help test
 FROM grub-base AS grub-bios
 ARG JOBS
 # Remove --gc-sections from CFLAGS
@@ -2019,9 +2055,41 @@ ARG CFLAGS="${CFLAGS//-flto=auto/}"
 ARG LDFLAGS="${LDFLAGS//-flto=auto/}"
 WORKDIR /sources/grub
 RUN mkdir -p /grub-bios
-RUN ./configure ${COMMON_CONFIGURE_ARGS} --with-platform=pc --disable-werror
-RUN make -s -j${JOBS} -l${MAX_LOAD} && make -s -j${JOBS} -l${MAX_LOAD} install-strip DESTDIR=/grub-bios
+# Protect against building grub-bios on aarch64 host which is not supported
+RUN if [ "${ARCH}" != "aarch64" ]; then ./configure ${COMMON_CONFIGURE_ARGS} --with-platform=pc --disable-werror;fi
+RUN if [ "${ARCH}" != "aarch64" ]; then make -s -j${JOBS} -l${MAX_LOAD} && make -s -j${JOBS} -l${MAX_LOAD} install-strip DESTDIR=/grub-bios;fi
 
+# libiconv for shim build only, NOT NEEDED IN THE FINAL BUILD
+FROM rsync AS iconv
+ARG JOBS
+COPY --from=sources-downloader /sources/downloads/libiconv.tar.gz /sources/
+RUN mkdir -p /iconv
+WORKDIR /sources
+RUN tar -xf libiconv.tar.gz && mv libiconv-* iconv
+WORKDIR /sources/iconv
+RUN ./configure ${COMMON_CONFIGURE_ARGS} --disable-static --enable-shared
+RUN make -s -j${JOBS} -l${MAX_LOAD} && make -s -j${JOBS} -l${MAX_LOAD} install DESTDIR=/iconv
+
+FROM rsync AS shim
+ARG JOBS
+COPY --from=libelf /libelf /libelf
+RUN rsync -aHAX --keep-dirlinks  /libelf/. /
+COPY --from=iconv /iconv /iconv
+RUN rsync -aHAX --keep-dirlinks  /iconv/. /
+COPY --from=sources-downloader /sources/downloads/shim.tar.bz2 /sources/
+WORKDIR /sources
+RUN tar -xf shim.tar.bz2 && mv shim-* shim
+WORKDIR /sources/shim
+RUN mkdir -p /shim/usr/share/efi/
+# Install it to a temp folder as the dir struct is terrible
+# and we want it to be available at /usr/share/efi/shimXX.efi
+# TEMP workaround, we should add our paths into the sdk so agent and aurora both search for the proper shim path
+RUN make -s -j${JOBS} -l${MAX_LOAD} EFIDIR=hadron ARCH=${BUILD_ARCH} DESTDIR=/tmp/shim install
+RUN if [ ${ARCH} = "aarch64" ] ; then \
+    mkdir -p /shim/usr/share/efi/aarch64 && cp /tmp/shim/boot/efi/EFI/BOOT/BOOTAA64.EFI /shim/usr/share/efi/aarch64/shim.efi ; \
+    else \
+    mkdir -p /shim/usr/share/efi/x86_64 && cp /tmp/shim/boot/efi/EFI/BOOT/BOOTX64.EFI /shim/usr/share/efi/x86_64/shim.efi ; \
+    fi
 
 FROM rsync AS tpm2-tss
 ARG JOBS
@@ -2772,7 +2840,11 @@ SHELL ["/bin/bash", "-c"]
 ## Link sh to bash
 RUN ln -s /bin/bash /bin/sh
 ## Symlink ld-musl-$ARCH.so to /bin/ldd to provide ldd functionality
-RUN ln -s /lib/ld-musl-x86_64.so.1 /bin/ldd
+RUN if [ "${ARCH}" == "aarch64" ]; then \
+    ln -s /lib/ld-musl-aarch64.so.1 /bin/ldd; \
+    else \
+    ln -s /lib/ld-musl-x86_64.so.1 /bin/ldd; \
+    fi
 CMD ["/bin/bash", "-l"]
 
 # Target that tests to see if the binaries work or we are missing some libs
@@ -2791,7 +2863,6 @@ RUN getfacl --version
 RUN setfacl --version
 RUN busybox --list
 RUN openssl version
-RUN ldd /bin/bash
 
 # stage2-merge is where we prepare stuff for the final image
 # more complete, this has systemd, sudo, openssh, iptables, kernel, etc..
@@ -2928,6 +2999,9 @@ RUN rsync -aHAX --keep-dirlinks  /grub-efi/. /skeleton
 
 COPY --from=grub-bios /grub-bios /grub-bios
 RUN rsync -aHAX --keep-dirlinks  /grub-bios/. /skeleton
+
+COPY --from=shim /shim /shim
+RUN rsync -aHAX --keep-dirlinks  /shim/. /skeleton
 
 ## Dracut
 COPY --from=dracut /dracut /dracut

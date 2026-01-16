@@ -6,8 +6,6 @@ on:
   push:
     branches:
       - main
-    tags:
-      - '*'
 concurrency:
   group: ci-image-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
@@ -31,14 +29,20 @@ jobs:
               max-parallelism = 2
       - name: Log in to the Container registry
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@6862ffc5ab2cdb4405cf318a62a6f4c066e2298b
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to the Container registry for cache
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_IO_USERNAME }}
+          password: ${{ secrets.QUAY_IO_PASSWORD }}
       - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051
+        uses: docker/metadata-action@v5
         with:
           images: |
             ghcr.io/${{ github.repository }}-toolchain
@@ -62,10 +66,12 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            cache-label=quay-remote-amd64
+          cache-from: type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-amd64
+          cache-to: type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-amd64,mode=max,ignore-error=true,compression=zstd,compression-level=3
           target: toolchain
-          cache-from: type=gha,scope=hadron/ci-image-main
-          cache-to: type=gha,mode=max,scope=hadron/ci-image-${{ github.ref_name }}
       - name: Build PR
         if: github.event_name == 'pull_request'
         uses: docker/build-push-action@v6
@@ -75,9 +81,14 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64
           tags: ttl.sh/hadron-toolchain:${{ github.sha }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            cache-label=quay-remote-amd64
+          cache-from: |
+            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-amd64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-pr-${{ github.event.pull_request.number }}-amd64
+          cache-to: type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-pr-${{ github.event.pull_request.number }}-amd64,mode=max,ignore-error=true,compression=zstd,compression-level=3
           target: toolchain
-          cache-from: type=gha,scope=hadron/ci-image-main
   container:
     runs-on: oracle-vm-32cpu-128gb-x86-64
     needs:
@@ -99,14 +110,20 @@ jobs:
               max-parallelism = 2
       - name: Log in to the Container registry
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@6862ffc5ab2cdb4405cf318a62a6f4c066e2298b
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to the Container registry for cache
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_IO_USERNAME }}
+          password: ${{ secrets.QUAY_IO_PASSWORD }}
       - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051
+        uses: docker/metadata-action@v5
         with:
           images: |
             ghcr.io/${{ github.repository }}-container
@@ -130,10 +147,14 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            cache-label=quay-remote-amd64
+          cache-from: |
+            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-amd64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:container-amd64
+          cache-to: type=registry,ref=quay.io/kairos/hadron-build-cache:container-amd64,mode=max,ignore-error=true,compression=zstd,compression-level=3
           target: container
-          cache-from: type=gha,scope=hadron/ci-image-main
-          cache-to: type=gha,mode=max,scope=hadron/ci-image-${{ github.ref_name }}
       - name: Build PR
         if: github.event_name == 'pull_request'
         uses: docker/build-push-action@v6
@@ -143,10 +164,17 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64
           tags: ttl.sh/hadron-container:${{ github.sha }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            cache-label=quay-remote-amd64
+          cache-from: |
+            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-amd64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:container-amd64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:container-pr-${{ github.event.pull_request.number }}-amd64
+          cache-to: type=registry,ref=quay.io/kairos/hadron-build-cache:container-pr-${{ github.event.pull_request.number }}-amd64,mode=max,ignore-error=true,compression=zstd,compression-level=3
           target: container
-          cache-from: type=gha,scope=hadron/ci-image-main
       - name: Test container image
+        if: github.event_name == 'pull_request'
         uses: docker/build-push-action@v6
         with:
           builder: ${{ steps.buildx.outputs.name }}
@@ -154,7 +182,9 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64
           target: container-test
-          cache-from: type=gha,scope=hadron/ci-image-main
+          cache-from: |
+            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-amd64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:container-amd64
   hadron-bios:
     runs-on: oracle-vm-32cpu-128gb-x86-64
     needs:
@@ -183,14 +213,20 @@ jobs:
               max-parallelism = 2
       - name: Log in to the Container registry
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@6862ffc5ab2cdb4405cf318a62a6f4c066e2298b
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to the Container registry for cache
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_IO_USERNAME }}
+          password: ${{ secrets.QUAY_IO_PASSWORD }}
       - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051
+        uses: docker/metadata-action@v5
         with:
           images: |
             ghcr.io/${{ github.repository }}${{ matrix.kernel == 'cloud' && '-cloud' || '' }}${{ matrix.fips == 'fips' && '-fips' || '' }}
@@ -216,8 +252,11 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           target: default
-          cache-from: type=gha,scope=hadron/ci-image-main
-          cache-to: type=gha,mode=max,scope=hadron/ci-image-${{ github.ref_name }}
+          cache-from:
+            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-amd64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:container-amd64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:bios-${{ matrix.kernel }}-${{ matrix.fips }}-amd64
+          cache-to: type=registry,ref=quay.io/kairos/hadron-build-cache:bios-${{ matrix.kernel }}-${{ matrix.fips }}-amd64,mode=max,ignore-error=true,compression=zstd,compression-level=3
           build-args: |
             BOOTLOADER=grub
             KERNEL_TYPE=${{ matrix.kernel }}
@@ -234,7 +273,12 @@ jobs:
           tags: ttl.sh/hadron${{ matrix.kernel == 'cloud' && '-cloud' || '' }}${{ matrix.fips == 'fips' && '-fips' || '' }}:${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
           target: default
-          cache-from: type=gha,scope=hadron/ci-image-main
+          cache-from:
+            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-amd64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:container-amd64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:bios-${{ matrix.kernel }}-${{ matrix.fips }}-amd64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:bios-${{ matrix.kernel }}-${{ matrix.fips }}-pr-${{ github.event.pull_request.number }}-amd64
+          cache-to: type=registry,ref=quay.io/kairos/hadron-build-cache:bios-${{ matrix.kernel }}-${{ matrix.fips }}-pr-${{ github.event.pull_request.number }}-amd64,mode=max,ignore-error=true,compression=zstd,compression-level=3
           build-args: |
             BOOTLOADER=grub
             KERNEL_TYPE=${{ matrix.kernel }}
@@ -263,14 +307,20 @@ jobs:
               max-parallelism = 2
       - name: Log in to the Container registry
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@6862ffc5ab2cdb4405cf318a62a6f4c066e2298b
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to the Container registry for cache
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_IO_USERNAME }}
+          password: ${{ secrets.QUAY_IO_PASSWORD }}
       - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051
+        uses: docker/metadata-action@v5
         with:
           images: |
             ghcr.io/${{ github.repository }}${{ matrix.kernel == 'cloud' && '-cloud' || '' }}-trusted
@@ -295,8 +345,11 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=hadron/ci-image-main
-          cache-to: type=gha,mode=max,scope=hadron/ci-image-${{ github.ref_name }}
+          cache-from: |
+            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-amd64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:container-amd64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:trusted-${{ matrix.kernel }}-amd64
+          cache-to: type=registry,ref=quay.io/kairos/hadron-build-cache:trusted-${{ matrix.kernel }}-amd64,mode=max,ignore-error=true,compression=zstd,compression-level=3
           target: default
           build-args: |
             BOOTLOADER=systemd
@@ -313,7 +366,12 @@ jobs:
           tags: ttl.sh/hadron${{ matrix.kernel == 'cloud' && '-cloud' || '' }}-trusted:${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
           target: default
-          cache-from: type=gha,scope=hadron/ci-image-main
+          cache-from: |
+            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-amd64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:container-amd64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:trusted-${{ matrix.kernel }}-amd64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:trusted-${{ matrix.kernel }}-pr-${{ github.event.pull_request.number }}-amd64
+          cache-to: type=registry,ref=quay.io/kairos/hadron-build-cache:trusted-${{ matrix.kernel }}-pr-${{ github.event.pull_request.number }}-amd64,mode=max,ignore-error=true,compression=zstd,compression-level=3
           build-args: |
             BOOTLOADER=systemd
             KERNEL_TYPE=${{ matrix.kernel }}
@@ -590,5 +648,4 @@ jobs:
           name: ${{ matrix.test }}-${{github.sha}}.logs.zip
           path: tests/**/logs/*
           if-no-files-found: warn
-
 
