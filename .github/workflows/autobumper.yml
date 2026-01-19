@@ -28,6 +28,8 @@ jobs:
         run: |
           set -e
           unset GITHUB_ACTION
+          # https://github.com/wader/bump/blob/e823ece27bc66f23f04e4c4c3d78abfb01b695fd/internal/github/action.go#L33
+          unset GITHUB_ACTIONS
           # Check if fork exists, create if not
           if ! gh repo view ci-forks/hadron --json name > /dev/null 2>&1; then
             echo "Fork does not exist. Creating fork..."
