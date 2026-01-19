@@ -27,7 +27,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           set -e
-          
+          unset GITHUB_ACTION
           # Check if fork exists, create if not
           if ! gh repo view ci-forks/hadron --json name > /dev/null 2>&1; then
             echo "Fork does not exist. Creating fork..."
@@ -65,7 +65,7 @@ jobs:
           git reset --hard upstream/main
 
           # Run bump and stage changes
-          bump update -v
+          bump update -f Bumpfile -v
           git add Dockerfile
 
           # Check if there are staged changes
