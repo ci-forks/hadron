@@ -26,8 +26,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
-          # Disable this var so bump does not think it's running as an action
-          unset GITHUB_ACTION
           set -e
           
           # Check if fork exists, create if not
