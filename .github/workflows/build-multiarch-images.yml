@@ -139,7 +139,7 @@ jobs:
         with:
           container: "${{ github.event.repository.name }}-toolchain"
           token: ${{ secrets.GITHUB_TOKEN }}
-          dry-run: 'true'
+          dry-run: 'false'
           keep-tags-regexes: |
             ^main$
             ^v\d+\.\d+\.\d+(-(beta|alpha|rc)[\.-]?\d*)?$
@@ -264,14 +264,18 @@ jobs:
           sources: |
             ghcr.io/${{ github.repository }}-container:${{ github.ref_name }}-amd64
             ghcr.io/${{ github.repository }}-container:${{ github.ref_name }}-arm64
-      - uses: actions/delete-package-versions@v5
+      - uses: vlaurin/action-ghcr-prune@v0.6.0
         with:
-          package-name: "${{ github.event.repository.name }}-container:${{ github.ref_name }}-amd64"
-          package-type: 'container'
-      - uses: actions/delete-package-versions@v5
-        with:
-          package-name: "${{ github.event.repository.name }}-container:${{ github.ref_name }}-arm64"
-          package-type: 'container'
+          container: "${{ github.event.repository.name }}-toolchain"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          dry-run: 'false'
+          keep-tags-regexes: |
+            ^main$
+            ^v\d+\.\d+\.\d+(-(beta|alpha|rc)[\.-]?\d*)?$
+          prune-tags-regexes: |
+            # remove the tags ending on -amd64 or -arm64 as they are temporary
+            .*-amd64$
+            .*-arm64$
   hadron-bios-amd64:
     runs-on: oracle-vm-32cpu-128gb-x86-64
     needs:
@@ -431,14 +435,18 @@ jobs:
           sources: |
             ghcr.io/${{ github.repository }}${{ matrix.kernel == 'cloud' && '-cloud' || '' }}${{ matrix.fips == 'fips' && '-fips' || '' }}:${{ github.ref_name }}-amd64
             ghcr.io/${{ github.repository }}${{ matrix.kernel == 'cloud' && '-cloud' || '' }}${{ matrix.fips == 'fips' && '-fips' || '' }}:${{ github.ref_name }}-arm64
-      - uses: actions/delete-package-versions@v5
+      - uses: vlaurin/action-ghcr-prune@v0.6.0
         with:
-          package-name: "${{ github.event.repository.name }}${{ matrix.kernel == 'cloud' && '-cloud' || '' }}${{ matrix.fips == 'fips' && '-fips' || '' }}:${{ github.ref_name }}-amd64"
-          package-type: 'container'
-      - uses: actions/delete-package-versions@v5
-        with:
-          package-name: "${{ github.event.repository.name }}${{ matrix.kernel == 'cloud' && '-cloud' || '' }}${{ matrix.fips == 'fips' && '-fips' || '' }}:${{ github.ref_name }}-arm64"
-          package-type: 'container'
+          container: "${{ github.event.repository.name }}-toolchain"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          dry-run: 'false'
+          keep-tags-regexes: |
+            ^main$
+            ^v\d+\.\d+\.\d+(-(beta|alpha|rc)[\.-]?\d*)?$
+          prune-tags-regexes: |
+            # remove the tags ending on -amd64 or -arm64 as they are temporary
+            .*-amd64$
+            .*-arm64$
   hadron-trusted-amd64:
     runs-on: oracle-vm-32cpu-128gb-x86-64
     needs:
@@ -584,11 +592,15 @@ jobs:
           sources: |
             ghcr.io/${{ github.repository }}${{ matrix.kernel == 'cloud' && '-cloud' || '' }}-trusted:${{ github.ref_name }}-amd64
             ghcr.io/${{ github.repository }}${{ matrix.kernel == 'cloud' && '-cloud' || '' }}-trusted:${{ github.ref_name }}-arm64
-      - uses: actions/delete-package-versions@v5
+      - uses: vlaurin/action-ghcr-prune@v0.6.0
         with:
-          package-name: "${{ github.event.repository.name }}${{ matrix.kernel == 'cloud' && '-cloud' || '' }}-trusted:${{ github.ref_name }}-amd64"
-          package-type: 'container'
-      - uses: actions/delete-package-versions@v5
-        with:
-          package-name: "${{ github.event.repository.name }}${{ matrix.kernel == 'cloud' && '-cloud' || '' }}-trusted:${{ github.ref_name }}-arm64"
-          package-type: 'container'
+          container: "${{ github.event.repository.name }}-toolchain"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          dry-run: 'false'
+          keep-tags-regexes: |
+            ^main$
+            ^v\d+\.\d+\.\d+(-(beta|alpha|rc)[\.-]?\d*)?$
+          prune-tags-regexes: |
+            # remove the tags ending on -amd64 or -arm64 as they are temporary
+            .*-amd64$
+            .*-arm64$
