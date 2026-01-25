@@ -55,7 +55,7 @@ RUN mkdir -p /sources/downloads
 
 WORKDIR /sources/downloads
 
-ARG CURL_VERSION=8.17.0
+ARG CURL_VERSION=8.18.0
 RUN wget -q https://curl.se/download/curl-${CURL_VERSION}.tar.gz -O curl.tar.gz
 
 ARG RSYNC_VERSION=3.4.1
@@ -99,7 +99,7 @@ RUN UTIL_LINUX_VERSION_MAJOR="${UTIL_LINUX_VERSION%%.*}" \
 ARG PYTHON_VERSION=3.14.2
 RUN wget -q https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tar.xz -O Python.tar.xz
 
-ARG SQLITE3_VERSION=3.51.1
+ARG SQLITE3_VERSION=3.51.2
 RUN wget -q https://github.com/sqlite/sqlite/archive/refs/tags/version-${SQLITE3_VERSION}.tar.gz -O sqlite3.tar.gz
 
 ARG OPENSSL_VERSION=3.6.0
@@ -146,7 +146,7 @@ ARG LIBNFTNL_VERSION=1.3.1
 RUN wget -q https://www.netfilter.org/projects/libnftnl/files/libnftnl-${LIBNFTNL_VERSION}.tar.xz -O libnftnl.tar.xz
 
 ## kernel
-ARG KERNEL_VERSION=6.18.2
+ARG KERNEL_VERSION=6.18.7
 RUN wget -q https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${KERNEL_VERSION}.tar.xz -O linux.tar.xz
 
 ## flex
@@ -197,7 +197,7 @@ ARG LVM2_VERSION=2.03.38
 RUN wget -q http://ftp-stud.fht-esslingen.de/pub/Mirrors/sourceware.org/lvm2/releases/LVM2.${LVM2_VERSION}.tgz -O lvm2.tgz
 
 ## multipath-tools
-ARG MULTIPATH_TOOLS_VERSION=0.13.0
+ARG MULTIPATH_TOOLS_VERSION=0.14.0
 RUN wget -q https://github.com/opensvc/multipath-tools/archive/refs/tags/${MULTIPATH_TOOLS_VERSION}.tar.gz -O multipath-tools.tar.gz
 
 ## jsonc
@@ -205,7 +205,7 @@ ARG JSONC_VERSION=0.18
 RUN wget -q https://s3.amazonaws.com/json-c_releases/releases/json-c-${JSONC_VERSION}.tar.gz -O json-c.tar.gz
 
 ## cmake
-ARG CMAKE_VERSION=4.2.1
+ARG CMAKE_VERSION=4.2.2
 RUN wget -q https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}.tar.gz -O cmake.tar.gz
 
 ## urcu
@@ -229,15 +229,15 @@ ARG CRYPTSETUP_VERSION=2.8.3
 RUN wget -q https://cdn.kernel.org/pub/linux/utils/cryptsetup/v${CRYPTSETUP_VERSION%.*}/cryptsetup-${CRYPTSETUP_VERSION}.tar.xz -O cryptsetup.tar.xz
 
 ## grub
-ARG GRUB_VERSION=2.12
+ARG GRUB_VERSION=2.14
 RUN wget -q https://mirrors.edge.kernel.org/gnu/grub/grub-${GRUB_VERSION}.tar.xz -O grub.tar.xz
 
 ## PAM
-ARG PAM_VERSION=1.7.1
+ARG PAM_VERSION=1.7.2
 RUN wget -q https://github.com/linux-pam/linux-pam/releases/download/v${PAM_VERSION}/Linux-PAM-${PAM_VERSION}.tar.xz -O pam.tar.xz
 
 # shadow
-ARG SHADOW_VERSION=4.18.0
+ARG SHADOW_VERSION=4.19.2
 RUN wget -q https://github.com/shadow-maint/shadow/releases/download/${SHADOW_VERSION}/shadow-${SHADOW_VERSION}.tar.xz -O shadow.tar.xz
 
 # alpine aports repo for patches to build under musl
@@ -323,7 +323,7 @@ ARG OPEN_SCSI_VERSION=2.1.11
 RUN wget -q https://github.com/open-iscsi/open-iscsi/archive/refs/tags/${OPEN_SCSI_VERSION}.tar.gz -O openscsi.tar.gz
 
 # GDB
-ARG GDB_VERSION=16.3
+ARG GDB_VERSION=17.1
 RUN wget -q https://sourceware.org/pub/gdb/releases/gdb-${GDB_VERSION}.tar.gz -O gdb.tar.gz
 
 ARG LIBFFI_VERSION=3.5.2
