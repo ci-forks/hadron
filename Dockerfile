@@ -55,7 +55,7 @@ RUN mkdir -p /sources/downloads
 
 WORKDIR /sources/downloads
 
-ARG CURL_VERSION=8.17.0
+ARG CURL_VERSION=8.18.0
 RUN wget -q https://curl.se/download/curl-${CURL_VERSION}.tar.gz -O curl.tar.gz
 
 ARG RSYNC_VERSION=3.4.1
@@ -99,7 +99,7 @@ RUN UTIL_LINUX_VERSION_MAJOR="${UTIL_LINUX_VERSION%%.*}" \
 ARG PYTHON_VERSION=3.14.2
 RUN wget -q https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tar.xz -O Python.tar.xz
 
-ARG SQLITE3_VERSION=3.51.1
+ARG SQLITE3_VERSION=3.51.2
 RUN wget -q https://github.com/sqlite/sqlite/archive/refs/tags/version-${SQLITE3_VERSION}.tar.gz -O sqlite3.tar.gz
 
 ARG OPENSSL_VERSION=3.6.0
@@ -146,7 +146,7 @@ ARG LIBNFTNL_VERSION=1.3.1
 RUN wget -q https://www.netfilter.org/projects/libnftnl/files/libnftnl-${LIBNFTNL_VERSION}.tar.xz -O libnftnl.tar.xz
 
 ## kernel
-ARG KERNEL_VERSION=6.18.2
+ARG KERNEL_VERSION=6.18.6
 RUN wget -q https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${KERNEL_VERSION}.tar.xz -O linux.tar.xz
 
 ## flex
@@ -197,7 +197,7 @@ ARG LVM2_VERSION=2.03.38
 RUN wget -q http://ftp-stud.fht-esslingen.de/pub/Mirrors/sourceware.org/lvm2/releases/LVM2.${LVM2_VERSION}.tgz -O lvm2.tgz
 
 ## multipath-tools
-ARG MULTIPATH_TOOLS_VERSION=0.13.0
+ARG MULTIPATH_TOOLS_VERSION=0.14.0
 RUN wget -q https://github.com/opensvc/multipath-tools/archive/refs/tags/${MULTIPATH_TOOLS_VERSION}.tar.gz -O multipath-tools.tar.gz
 
 ## jsonc
@@ -205,7 +205,7 @@ ARG JSONC_VERSION=0.18
 RUN wget -q https://s3.amazonaws.com/json-c_releases/releases/json-c-${JSONC_VERSION}.tar.gz -O json-c.tar.gz
 
 ## cmake
-ARG CMAKE_VERSION=4.2.1
+ARG CMAKE_VERSION=4.2.2
 RUN wget -q https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}.tar.gz -O cmake.tar.gz
 
 ## urcu
@@ -229,7 +229,7 @@ ARG CRYPTSETUP_VERSION=2.8.3
 RUN wget -q https://cdn.kernel.org/pub/linux/utils/cryptsetup/v${CRYPTSETUP_VERSION%.*}/cryptsetup-${CRYPTSETUP_VERSION}.tar.xz -O cryptsetup.tar.xz
 
 ## grub
-ARG GRUB_VERSION=2.12
+ARG GRUB_VERSION=2.14
 RUN wget -q https://mirrors.edge.kernel.org/gnu/grub/grub-${GRUB_VERSION}.tar.xz -O grub.tar.xz
 
 ## PAM
@@ -237,7 +237,7 @@ ARG PAM_VERSION=1.7.1
 RUN wget -q https://github.com/linux-pam/linux-pam/releases/download/v${PAM_VERSION}/Linux-PAM-${PAM_VERSION}.tar.xz -O pam.tar.xz
 
 # shadow
-ARG SHADOW_VERSION=4.18.0
+ARG SHADOW_VERSION=4.19.2
 RUN wget -q https://github.com/shadow-maint/shadow/releases/download/${SHADOW_VERSION}/shadow-${SHADOW_VERSION}.tar.xz -O shadow.tar.xz
 
 # alpine aports repo for patches to build under musl
@@ -323,7 +323,7 @@ ARG OPEN_SCSI_VERSION=2.1.11
 RUN wget -q https://github.com/open-iscsi/open-iscsi/archive/refs/tags/${OPEN_SCSI_VERSION}.tar.gz -O openscsi.tar.gz
 
 # GDB
-ARG GDB_VERSION=16.3
+ARG GDB_VERSION=17.1
 RUN wget -q https://sourceware.org/pub/gdb/releases/gdb-${GDB_VERSION}.tar.gz -O gdb.tar.gz
 
 ARG LIBFFI_VERSION=3.5.2
@@ -344,7 +344,8 @@ RUN wget -q https://ftp.gnu.org/gnu/gzip/gzip-${GZIP_VERSION}.tar.xz -O gzip.tar
 
 ARG BASH_VERSION=5.3
 # Patch level is the number of patches upstream bash has released for this version https://ftp.gnu.org/gnu/bash/bash-${BASH_VERSION}-patches/
-ARG PATCH_LEVEL=8
+# TODO: Maybe we should try like 15 patches and stop once 2 have gone without finding a patch? So we cover more ground without hardcoding a number?
+ARG PATCH_LEVEL=9
 # Get the patches from https://ftp.gnu.org/gnu/bash/bash-${BASH_VERSION}-patches/
 # They are in the format bash$BASH_VERSION_NO_DOT-00$PATCH_LEVEL
 # But the index starts at 1
@@ -668,6 +669,7 @@ RUN tar -xf aports.tar.gz && mv aports-* aport
 WORKDIR /sources
 RUN tar -xf attr.tar.gz && mv attr-* attr
 WORKDIR /sources/attr
+# TODO: Its fixed on attr master so we can drop this patch when they do a new release
 RUN patch -p1 < /sources/patches/aport/main/attr/attr-basename.patch
 RUN ./configure ${COMMON_CONFIGURE_ARGS} --disable-dependency-tracking --sysconfdir=/etc \
     --mandir=/usr/share/man \
@@ -1328,7 +1330,8 @@ RUN mkdir -p /shadow
 WORKDIR /sources
 RUN tar -xf shadow.tar.xz && mv shadow-* shadow
 WORKDIR /sources/shadow
-RUN ./configure ${COMMON_CONFIGURE_ARGS} --sysconfdir=/etc --without-libbsd --disable-nls
+# --disable-logind disables building with systemd logind support. This is for the base shadow build without systemd
+RUN ./configure ${COMMON_CONFIGURE_ARGS} --sysconfdir=/etc --without-libbsd --disable-nls --disable-logind
 RUN make -s -j${JOBS} -l${MAX_LOAD} && make -s -j${JOBS} -l${MAX_LOAD} exec_prefix=/usr pamddir= install DESTDIR=/shadow && make exec_prefix=/usr pamddir= -s -j${JOBS} -l${MAX_LOAD} install
 
 
@@ -2014,7 +2017,7 @@ COPY --from=sources-downloader /sources/downloads/grub.tar.xz /sources/
 WORKDIR /sources
 RUN tar -xf grub.tar.xz && mv grub-* grub
 WORKDIR /sources/grub
-RUN echo depends bli part_gpt > grub-core/extra_deps.lst
+#RUN echo depends bli part_gpt > grub-core/extra_deps.lst
 
 
 FROM grub-base AS grub-efi
@@ -2028,9 +2031,13 @@ ARG LDFLAGS="${LDFLAGS//-flto=auto/}"
 WORKDIR /sources/grub
 RUN mkdir -p /grub-efi
 RUN ./configure ${COMMON_CONFIGURE_ARGS} --with-platform=efi --disable-efiemu --disable-werror
+# Reconfigure gnulib shipped with grub to avoid build issues
+# This comes because on grub 2.14 these files are shipped pre-generated and they were built on a glibc system
+# which causes issues when building on musl systems as it expects the bsd-compat-headers to be available
+# which is not the case here. So we force regenerating these files with our musl toolchain so it can find there is no cdefs
+RUN make -s -j${JOBS} -l${MAX_LOAD} -C grub-core/lib/gnulib
 RUN make -s -j${JOBS} -l${MAX_LOAD} && make -s -j${JOBS} -l${MAX_LOAD} install-strip DESTDIR=/grub-efi
-# Build grub.efi file for Hadron (no signed shim, so we use grub directly as bootx64.efi)
-# The prefix ($root)/boot/grub2 is a runtime expression that grub will resolve at boot time
+# The prefix should be empty so grub can find its config next to the efi file
 RUN if [ "${ARCH}" = "aarch64" ]; then \
 		grub_format="arm64-efi"; \
 		grub_efi_name="grubaa64.efi"; \
@@ -2045,6 +2052,8 @@ RUN if [ "${ARCH}" = "aarch64" ]; then \
 		loopback cat squash4 xzio gzio serial regexp part_gpt ext2 fat normal \
         boot configfile part_msdos linux echo search search_label search_fs_uuid \
         search_fs_file chain loadenv gfxterm all_video iso9660 help test
+
+
 FROM grub-base AS grub-bios
 ARG JOBS
 # Remove --gc-sections from CFLAGS
@@ -2057,8 +2066,50 @@ WORKDIR /sources/grub
 RUN mkdir -p /grub-bios
 # Protect against building grub-bios on aarch64 host which is not supported
 RUN if [ "${ARCH}" != "aarch64" ]; then ./configure ${COMMON_CONFIGURE_ARGS} --with-platform=pc --disable-werror;fi
-RUN if [ "${ARCH}" != "aarch64" ]; then make -s -j${JOBS} -l${MAX_LOAD} && make -s -j${JOBS} -l${MAX_LOAD} install-strip DESTDIR=/grub-bios;fi
+# Reconfigure gnulib shipped with grub to avoid build issues
+# This comes because on grub 2.14 these files are shipped pre-generated and they were built on a glibc system
+# which causes issues when building on musl systems as it expects the bsd-compat-headers to be available
+# which is not the case here. So we force regenerating these files with our musl toolchain so it can find there is no cdefs
+RUN if [ "${ARCH}" != "aarch64" ]; then make -s -j${JOBS} -l${MAX_LOAD} -C grub-core/lib/gnulib;fi
+# GRUB 2.14 + binutils >= 2.4x regression (musl toolchain): force -Ttext instead of --image-base
+#
+# Symptom:
+#   grub-install fails with:
+#     ".../i386-pc/kernel.img is miscompiled: its start address is 0x9074 instead of 0x9000: ld.gold bug?."
+#
+# Root cause:
+#   For the i386-pc target, GRUB requires kernel.img to have its entry point (and .text start) at 0x9000.
+#   With newer binutils, GRUB's configure detects support for ld's --image-base and sets:
+#       TARGET_IMG_BASE_LDOPT = -Wl,--image-base
+#   Using --image-base sets the base address of the LOAD segment, but ld then places .text *after* ELF+PHDR
+#   headers (SIZEOF_HEADERS). On our builds SIZEOF_HEADERS is 0x74 bytes, so:
+#       0x9000 + 0x74 = 0x9074
+#   This shifts the entry point to 0x9074, and grub-install correctly rejects the image.
+#
+# Fix:
+#   Override GRUB to link with -Ttext instead, which pins the .text VMA/entry exactly at 0x9000
+#   (independent of header size), restoring the layout GRUB expects.
+#
+# Note:
+#   The error message mentions "ld.gold", but this occurs with ld.bfd as well; it is a generic GRUB
+#   mislink diagnostic for i386-pc images.
+#
+# Implementation:
+#   Pass TARGET_IMG_BASE_LDOPT='-Wl,-Ttext' on the make/make install invocations that produce/install i386-pc images.
 
+RUN if [ "${ARCH}" != "aarch64" ]; then \
+    make -s -j${JOBS} -l${MAX_LOAD} TARGET_IMG_BASE_LDOPT='-Wl,-Ttext' && \
+    make -s -j${JOBS} -l${MAX_LOAD} TARGET_IMG_BASE_LDOPT='-Wl,-Ttext' install-strip DESTDIR=/grub-bios ; \
+    fi
+# Test the mkimage generation in case we have a misalignment on the kernel.img start entry point
+RUN if [ "${ARCH}" != "aarch64" ]; then \
+    /grub-bios/usr/bin/grub-mkimage \
+      --directory '/grub-bios/usr/lib/grub/i386-pc' \
+      --prefix= \
+      --output '/core.img' \
+      --format 'i386-pc' \
+      ext2 part_gpt biosdisk ; \
+    fi
 # libiconv for shim build only, NOT NEEDED IN THE FINAL BUILD
 FROM rsync AS iconv
 ARG JOBS
@@ -2382,8 +2433,6 @@ WORKDIR /sources
 RUN tar -xf multipath-tools.tar.gz && mv multipath-tools-* multipath-tools
 WORKDIR /sources/multipath-tools
 ENV CC="gcc"
-COPY patches/0001-multipathd-Dont-pthread_join-twice.patch /sources/multipath-tools/0001-multipathd-Dont-pthread_join-twice.patch
-RUN patch -p1 </sources/multipath-tools/0001-multipathd-Dont-pthread_join-twice.patch 
 # Set lib to /lib so it works in initramfs as well
 RUN make -s -j${JOBS} -l${MAX_LOAD} sysconfdir="/etc" configdir="/etc/multipath/conf.d" LIB=/lib
 RUN make -s -j${JOBS} -l${MAX_LOAD} SYSTEMDPATH=/lib LIB=/lib install DESTDIR=/multipath-tools
@@ -2446,6 +2495,8 @@ FROM shadow-base AS shadow-systemd
 ARG JOBS
 COPY --from=pam-systemd /pam /pam
 RUN rsync -aHAX --keep-dirlinks  /pam/. /
+COPY --from=systemd /systemd /systemd
+RUN rsync -aHAX --keep-dirlinks  /systemd/. /
 COPY --from=sources-downloader /sources/downloads/shadow.tar.xz /sources/
 RUN mkdir -p /shadow
 WORKDIR /sources
