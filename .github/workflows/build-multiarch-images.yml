@@ -58,7 +58,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           target: toolchain
           cache-from: |
-            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-amd64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-amd64,mode=max
           cache-to: ${{ github.ref_name == 'main' && 'type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-amd64,mode=max,ignore-error=true,compression=zstd,compression-level=3,oci-mediatypes=true,image-manifest=true' || 'type=inline' }}
   toolchain-arm64:
     runs-on: oracle-vm-32cpu-128gb-arm64
@@ -106,7 +106,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           target: toolchain
           cache-from: |
-            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-arm64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-arm64,mode=max
           cache-to: ${{ github.ref_name == 'main' && 'type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-arm64,mode=max,ignore-error=true,compression=zstd,compression-level=3,oci-mediatypes=true,image-manifest=true' || 'type=inline' }}
           build-args: |
             ARCH=aarch64
@@ -198,8 +198,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           target: container
           cache-from: |
-            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-amd64
-            type=registry,ref=quay.io/kairos/hadron-build-cache:container-amd64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-amd64,mode=max
+            type=registry,ref=quay.io/kairos/hadron-build-cache:container-amd64,mode=max
           cache-to: ${{ github.ref_name == 'main' && 'type=registry,ref=quay.io/kairos/hadron-build-cache:container-amd64,mode=max,ignore-error=true,compression=zstd,compression-level=3,oci-mediatypes=true,image-manifest=true' || 'type=inline' }}
   container-arm64:
     runs-on: oracle-vm-32cpu-128gb-arm64
@@ -249,8 +249,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           target: container
           cache-from: |
-            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-arm64
-            type=registry,ref=quay.io/kairos/hadron-build-cache:container-arm64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-arm64,mode=max
+            type=registry,ref=quay.io/kairos/hadron-build-cache:container-arm64,mode=max
           cache-to: ${{ github.ref_name == 'main' && 'type=registry,ref=quay.io/kairos/hadron-build-cache:container-arm64,mode=max,ignore-error=true,compression=zstd,compression-level=3,oci-mediatypes=true,image-manifest=true' || 'type=inline' }}
           build-args: |
             ARCH=aarch64
@@ -349,9 +349,9 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           target: default
           cache-from: |
-            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-amd64
-            type=registry,ref=quay.io/kairos/hadron-build-cache:container-amd64
-            type=registry,ref=quay.io/kairos/hadron-build-cache:bios-${{ matrix.kernel }}-${{ matrix.fips }}-amd64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-amd64,mode=max
+            type=registry,ref=quay.io/kairos/hadron-build-cache:container-amd64,mode=max
+            type=registry,ref=quay.io/kairos/hadron-build-cache:bios-${{ matrix.kernel }}-${{ matrix.fips }}-amd64,mode=max
           cache-to: ${{ github.ref_name == 'main' && format('type=registry,ref=quay.io/kairos/hadron-build-cache:bios-{0}-{1}-amd64,mode=max,ignore-error=true,compression=zstd,compression-level=3,oci-mediatypes=true,image-manifest=true', matrix.kernel, matrix.fips) || 'type=inline' }}
           build-args: |
             BOOTLOADER=grub
@@ -412,9 +412,9 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           target: default
           cache-from: |
-            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-arm64
-            type=registry,ref=quay.io/kairos/hadron-build-cache:container-arm64
-            type=registry,ref=quay.io/kairos/hadron-build-cache:bios-${{ matrix.kernel }}-${{ matrix.fips }}-arm64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-arm64,mode=max
+            type=registry,ref=quay.io/kairos/hadron-build-cache:container-arm64,mode=max
+            type=registry,ref=quay.io/kairos/hadron-build-cache:bios-${{ matrix.kernel }}-${{ matrix.fips }}-arm64,mode=max
           cache-to: ${{ github.ref_name == 'main' && format('type=registry,ref=quay.io/kairos/hadron-build-cache:bios-{0}-{1}-arm64,mode=max,ignore-error=true,compression=zstd,compression-level=3,oci-mediatypes=true,image-manifest=true', matrix.kernel, matrix.fips) || 'type=inline' }}
           build-args: |
             BOOTLOADER=grub
@@ -518,9 +518,9 @@ jobs:
           tags: ghcr.io/${{ github.repository }}${{ matrix.kernel == 'cloud' && '-cloud' || '' }}-trusted:${{ github.ref_name }}-amd64
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: |
-            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-amd64
-            type=registry,ref=quay.io/kairos/hadron-build-cache:container-amd64
-            type=registry,ref=quay.io/kairos/hadron-build-cache:trusted-${{ matrix.kernel }}-amd64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-amd64,mode=max
+            type=registry,ref=quay.io/kairos/hadron-build-cache:container-amd64,mode=max
+            type=registry,ref=quay.io/kairos/hadron-build-cache:trusted-${{ matrix.kernel }}-amd64,mode=max
           cache-to: ${{ github.ref_name == 'main' && format('type=registry,ref=quay.io/kairos/hadron-build-cache:trusted-{0}-amd64,mode=max,ignore-error=true,compression=zstd,compression-level=3,oci-mediatypes=true,image-manifest=true', matrix.kernel) || 'type=inline' }}
           target: default
           build-args: |
@@ -576,9 +576,9 @@ jobs:
           tags: ghcr.io/${{ github.repository }}${{ matrix.kernel == 'cloud' && '-cloud' || '' }}-trusted:${{ github.ref_name }}-arm64
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: |
-            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-arm64
-            type=registry,ref=quay.io/kairos/hadron-build-cache:container-arm64
-            type=registry,ref=quay.io/kairos/hadron-build-cache:trusted-${{ matrix.kernel }}-arm64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-arm64,mode=max
+            type=registry,ref=quay.io/kairos/hadron-build-cache:container-arm64,mode=max
+            type=registry,ref=quay.io/kairos/hadron-build-cache:trusted-${{ matrix.kernel }}-arm64,mode=max
           cache-to: ${{ github.ref_name == 'main' && format('type=registry,ref=quay.io/kairos/hadron-build-cache:trusted-{0}-arm64,mode=max,ignore-error=true,compression=zstd,compression-level=3,oci-mediatypes=true,image-manifest=true', matrix.kernel) || 'type=inline' }}
           target: default
           build-args: |

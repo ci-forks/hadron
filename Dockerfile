@@ -15,7 +15,7 @@ ARG CFLAGS
 # Use sha. Otherwise the tag can get updated and break reproducibility and force rebuilds for apparent no reason
 FROM alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659 AS alpine-base
 RUN apk update && \
-    apk add git bash wget bash perl build-base make patch busybox-static \
+    apk add --no-cache git bash wget bash perl build-base make patch busybox-static \
     curl m4 xz texinfo bison gawk gzip zstd-dev coreutils bzip2 tar rsync \
     git coreutils findutils pax-utils binutils
 

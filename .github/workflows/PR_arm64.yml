@@ -42,7 +42,7 @@ jobs:
             ${{ steps.meta.outputs.labels }}
           target: toolchain
           cache-from: |
-            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-arm64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-arm64,mode=max
           build-args: |
             ARCH=aarch64
             BUILD_ARCH=aarch64
@@ -82,8 +82,8 @@ jobs:
             ${{ steps.meta.outputs.labels }}
           target: container
           cache-from: |
-            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-arm64
-            type=registry,ref=quay.io/kairos/hadron-build-cache:container-arm64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-arm64,mode=max
+            type=registry,ref=quay.io/kairos/hadron-build-cache:container-arm64,mode=max
           build-args: |
             ARCH=aarch64
             BUILD_ARCH=aarch64
@@ -96,8 +96,8 @@ jobs:
           platforms: linux/arm64
           target: container-test
           cache-from: |
-            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-arm64
-            type=registry,ref=quay.io/kairos/hadron-build-cache:container-arm64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-arm64,mode=max
+            type=registry,ref=quay.io/kairos/hadron-build-cache:container-arm64,mode=max
           build-args: |
             ARCH=aarch64
             BUILD_ARCH=aarch64
@@ -141,9 +141,9 @@ jobs:
             ${{ steps.meta.outputs.labels }}
           target: default
           cache-from: |
-            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-arm64
-            type=registry,ref=quay.io/kairos/hadron-build-cache:container-arm64
-            type=registry,ref=quay.io/kairos/hadron-build-cache:grub-${{ matrix.kernel }}-arm64
+            type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-arm64,mode=max
+            type=registry,ref=quay.io/kairos/hadron-build-cache:container-arm64,mode=max
+            type=registry,ref=quay.io/kairos/hadron-build-cache:grub-${{ matrix.kernel }}-arm64,mode=max
           build-args: |
             BOOTLOADER=grub
             KERNEL_TYPE=${{ matrix.kernel }}
