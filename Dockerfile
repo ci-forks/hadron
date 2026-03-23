@@ -253,7 +253,7 @@ ARG BUSYBOX_VERSION=1.37.0
 RUN wget -q --no-check-certificate https://busybox.net/downloads/busybox-${BUSYBOX_VERSION}.tar.bz2 -O busybox.tar.bz2
 
 ## musl
-ARG MUSL_VERSION=1.2.5
+ARG MUSL_VERSION=1.2.6
 RUN wget -q http://musl.libc.org/releases/musl-${MUSL_VERSION}.tar.gz -O musl.tar.gz
 
 ## gcc and dependencies
