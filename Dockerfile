@@ -59,11 +59,11 @@ WORKDIR /sources/downloads
 
 ### This stages below are used to download the sources for the packages
 FROM sources-downloader-base AS curl-download
-ARG CURL_VERSION=8.19.0
+ARG CURL_VERSION=8.20.0
 RUN wget -q https://curl.se/download/curl-${CURL_VERSION}.tar.gz -O curl.tar.gz
 
 FROM sources-downloader-base AS rsync-download
-ARG RSYNC_VERSION=3.4.1
+ARG RSYNC_VERSION=3.4.2
 RUN wget -q https://download.samba.org/pub/rsync/rsync-${RSYNC_VERSION}.tar.gz -O rsync.tar.gz
 
 FROM sources-downloader-base AS xxhash-download
