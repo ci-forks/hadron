@@ -510,6 +510,7 @@ COPY --from=bc-download /sources/downloads/bc.tar.xz /sources/downloads/
 # Creates the system skeleton
 # dirs, minimum files, symlinks, etc.
 FROM stage0 AS skeleton
+ARG VERSION
 SHELL ["/bin/bash", "-c"]
 RUN mkdir -p /sysroot
 WORKDIR /sysroot
@@ -629,6 +630,7 @@ PRETTY_NAME="Hadron Linux"
 ID=hadron
 BUILD_ID=rolling
 EOF
+RUN echo "VERSION_ID=\"${VERSION}\"" >> etc/os-release
 
 COPY <<'EOF' etc/hosts
 127.0.0.1   localhost localhost.localdomain
@@ -1481,6 +1483,13 @@ RUN cd /sources && \
     cd gperf && mkdir -p /gperf && ./configure ${COMMON_CONFIGURE_ARGS} --disable-dependency-tracking --prefix=/usr && \
     make -s -j${JOBS} -l${MAX_LOAD} BUILD_CC=gcc CC="${CC:-gcc}" lib=lib prefix=/usr GOLANG=no DESTDIR=/gperf && \
     make -s -j${JOBS} -l${MAX_LOAD} DESTDIR=/gperf install && make -s -j${JOBS} -l${MAX_LOAD} install
+
+FROM stage1 AS hadron-splash
+WORKDIR /sources/hadron
+COPY files/hadron-splash/main.c .
+COPY files/hadron-splash/Makefile .
+RUN make hadron-splash
+RUN mkdir -p /hadron-splash && mv hadron-splash /hadron-splash
 
 ## libseccomp for k8s stuff mainly
 FROM rsync AS libseccomp
@@ -2961,6 +2970,9 @@ COPY --link --from=zlib /zlib /
 COPY --link --from=lz4 /lz4 /
 COPY --link --from=xxhash /xxhash /
 
+# Base skeleton
+COPY --from=skeleton /sysroot /merge
+
 # Now prepare a merged directory with all the built tools
 COPY --from=busybox /sysroot /busybox
 RUN rsync -aHAX --keep-dirlinks  /busybox/. /merge
@@ -3067,11 +3079,14 @@ COPY --from=findutils /findutils /findutils
 RUN rsync -aHAX --keep-dirlinks  /findutils/. /merge
 COPY --from=gzip /gzip /gzip
 RUN rsync -aHAX --keep-dirlinks  /gzip/. /merge
+COPY --from=shadow-systemd /shadow /shadow
+RUN rsync -aHAX --keep-dirlinks  /shadow/. /merge
+
 COPY --from=kernel-misc /output /merge/usr/share/kernel-misc
 COPY --from=bc /bc /merge
 COPY --from=libelf /libelf /merge
 COPY --from=tpm2-tss /tpm2-tss /merge
-COPY --from=shadow-systemd /shadow /merge
+COPY --from=hadron-splash /hadron-splash/hadron-splash /merge/bin/hadron-splash
 
 FROM scratch AS toolchain
 # These are the default values for the toolchain
@@ -3098,14 +3113,11 @@ SHELL ["/bin/bash", "-c"]
 COPY --from=full-toolchain-merge /merge /.
 RUN ln -s /bin/bash /bin/sh
 RUN ln -s /usr/bin/gcc /usr/bin/cc
-RUN ln -s /bin/env /usr/bin/env
-# Some build systems expect the /tmp dir to exist and if you run this as a container it may not be mounted to anything, so we need to create it
-RUN mkdir /tmp
-# Some build systems will try to get the current user id info and fail if it can't find it, so we need to create a simple /etc/passwd file with at least the root user in it
-RUN printf 'root:x:0:0:root:/root:/bin/bash\n' > /etc/passwd
 ## Symlink ld-musl-$ARCH.so to /bin/ldd to provide ldd functionality
 RUN if [ "${BUILD_ARCH}" == "aarch64" ]; then \
     ln -s /lib/ld-musl-aarch64.so.1 /bin/ldd; \
+    elif [ "${BUILD_ARCH}" == "riscv64" ]; then \
+    ln -s /lib/ld-musl-riscv64.so.1 /bin/ldd; \
     else \
     ln -s /lib/ld-musl-x86_64.so.1 /bin/ldd; \
     fi
@@ -3223,6 +3235,8 @@ RUN rsync -aHAX --keep-dirlinks  /kbd/. /skeleton
 COPY --from=openssl /openssl /openssl
 RUN rsync -aHAX --keep-dirlinks  /openssl/. /skeleton/
 
+COPY --from=hadron-splash /hadron-splash/hadron-splash /skeleton/bin/hadron-splash
+
 # TODO: Do we need sudo in the container image?
 ## Cleanup
 
@@ -3249,6 +3263,7 @@ RUN find /skeleton -name "__pycache__" -type d -exec rm -rf {} +
 
 # Container base image, it has the minimal required to run as a container
 FROM scratch AS container
+ARG VERSION
 COPY --from=stage2-merge /skeleton /
 SHELL ["/bin/bash", "-c"]
 ## Link sh to bash
@@ -3505,7 +3520,6 @@ RUN echo "en_US.UTF-8" > /etc/locale.conf
 RUN echo "if ! less -V > /dev/null 2>&1 ; then export SYSTEMD_COLORS=0; fi" >> /etc/profile.d/systemd-no-colors.sh
 RUN chmod 644 /etc/profile.d/locale.sh
 RUN chmod 644 /etc/bash.bashrc
-RUN echo "VERSION_ID=\"${VERSION}\"" >> /etc/os-release
 RUN busybox --install
 # mkfs.fat is a script that calls mkfs.vfat busybox applet with the proper name and pass all args for compatibility
 RUN echo -e '#!/bin/sh\nexec /bin/mkfs.vfat "$@"\n' > /bin/mkfs.fat && chmod +x /bin/mkfs.fat
@@ -3537,6 +3551,8 @@ RUN mkdir -p /usr/local/lib && ln -s /lib/firmware /usr/local/lib/firmware
 RUN rm /bin/ldd
 RUN if [ "${BUILD_ARCH}" == "aarch64" ]; then \
     ln -s /lib/ld-musl-aarch64.so.1 /bin/ldd; \
+    elif [ "$BUILD_ARCH" == "riscv64" ]; then \
+    ln -s /lib/ld-musl-riscv64.so.1 /bin/ldd; \
     else \
     ln -s /lib/ld-musl-x86_64.so.1 /bin/ldd; \
     fi
