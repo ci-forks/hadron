@@ -3,14 +3,20 @@
 # nvidia modules use the base kernel build to build the modules (Kbuild) so it needs to match the exact version kernel you
 # are going to be run, otherwise it will mismatch and not load the modules during runtime
 ARG HADRON_VERSION=v0.0.4
-ARG BASE_IMAGE=ghcr.io/kairos-io/hadron
+# Full Kairos image ref (includes kairos-agent required by NodeOpUpgrade).
+# BASE_IMAGE_TAG must be set explicitly — it's the full quay.io tag, not just HADRON_VERSION.
+ARG BASE_IMAGE=quay.io/kairos/hadron
+ARG BASE_IMAGE_TAG=v0.0.4-standard-amd64-generic-v4.0.3-k3s-v1.35.2-k3s1
 ARG JOBS
 ARG NVIDIA_VERSION=580.126.20
 ARG TARGETARCH
+# KERNEL_ARCH uses Linux kernel naming (x86_64, arm64) rather than Docker's (amd64, arm64)
+ARG KERNEL_ARCH=x86_64
 
 FROM ghcr.io/kairos-io/hadron-toolchain:${HADRON_VERSION} AS modules-builder
 ARG JOBS
 ARG TARGETARCH
+ARG KERNEL_ARCH
 WORKDIR /build
 # kernel version is stored under /usr/share/kernel-misc/kernel-version file
 # Pull kernel sources so we can build the modules
@@ -21,8 +27,8 @@ RUN cp /usr/share/kernel-misc/kernel-config .config
 # Disable module signing cleanly
 RUN ./scripts/config --disable MODULE_SIG
 RUN ./scripts/config --disable MODULE_SIG_ALL
-RUN ARCH=${TARGETARCH} make -s olddefconfig
-RUN ARCH=${TARGETARCH} make -s -j${JOBS} modules_prepare
+RUN ARCH=${KERNEL_ARCH} make -s olddefconfig
+RUN ARCH=${KERNEL_ARCH} make -s -j${JOBS} modules_prepare
 RUN cp /usr/share/kernel-misc/Module.symvers .
 ARG NVIDIA_VERSION
 WORKDIR /build
@@ -31,8 +37,8 @@ RUN tar -xf nvidia.tar.gz && rm nvidia.tar.gz && mv open-gpu-kernel-modules-${NV
 WORKDIR /build/nvidia-modules
 ENV CFLAGS="-Os -pipe"
 ENV LDFLAGS="--gc-sections --as-needed"
-RUN ARCH=${TARGETARCH} KERNEL_UNAME="$(cat /usr/share/kernel-misc/kernel-release)" SYSSRC=/build/linux SYSOUT=/build/linux make -s -j${JOBS} modules
-RUN ARCH=${TARGETARCH} KERNEL_UNAME="$(cat /usr/share/kernel-misc/kernel-release)" SYSSRC=/build/linux SYSOUT=/build/linux ZSTD_CLEVEL=19 INSTALL_MOD_PATH="/output" INSTALL_MOD_STRIP=1 DEPMOD=true make -s -j${JOBS} modules_install
+RUN ARCH=${KERNEL_ARCH} KERNEL_UNAME="$(cat /usr/share/kernel-misc/kernel-release)" SYSSRC=/build/linux SYSOUT=/build/linux make -s -j${JOBS} modules
+RUN ARCH=${KERNEL_ARCH} KERNEL_UNAME="$(cat /usr/share/kernel-misc/kernel-release)" SYSSRC=/build/linux SYSOUT=/build/linux ZSTD_CLEVEL=19 INSTALL_MOD_PATH="/output" INSTALL_MOD_STRIP=1 DEPMOD=true make -s -j${JOBS} modules_install
 
 # Create a separate stage to extract the NVIDIA userspace components, which we can then add to the Hadron image as well.
 # As the nvdia userspace components are linked against glibc, we also need to copy the glibc runtime libraries to ensure they can run properly in the musl-based Hadron image.
@@ -52,7 +58,8 @@ RUN apt-get update && \
         curl \
         xz-utils \
         libstdc++6 \
-        libgcc-s1 && \
+        libgcc-s1 \
+        nvidia-modprobe && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /work
@@ -110,16 +117,33 @@ RUN cp -a sbin/nvidia-smi ${OUTPUT}/usr/bin/
 RUN cp -a sbin/nvidia-cuda-mps-server ${OUTPUT}/usr/bin/
 RUN cp -a sbin/nvidia-cuda-mps-control ${OUTPUT}/usr/bin/
 
+# nvidia-modprobe: creates /dev/nvidia* device nodes when the kernel module loads.
+# Without it the modules load at boot but udev never creates the device files,
+# so nvidia-smi fails with "couldn't communicate with the NVIDIA driver".
+# nvidia-modprobe is version-independent (reads major numbers from /proc/devices),
+# so the apt package version does not need to match the driver version.
+RUN cp -a /usr/bin/nvidia-modprobe ${OUTPUT}/usr/bin/nvidia-modprobe
+
+# udev rules: create /dev/nvidia0 when nvidia module loads, /dev/nvidia-uvm when nvidia_uvm loads.
+# -c 0 creates the GPU character device; -u (without -c) creates the UVM device.
+# Do NOT combine -c 0 -u in one call — -u means "UVM mode instead of GPU mode",
+# which suppresses /dev/nvidia0 creation and leaves the GPU inaccessible.
+RUN mkdir -p ${OUTPUT}/etc/udev/rules.d && \
+    printf 'SUBSYSTEM=="module", ACTION=="add", KERNEL=="nvidia", RUN+="/usr/bin/nvidia-modprobe -c 0"\nSUBSYSTEM=="module", ACTION=="add", KERNEL=="nvidia_uvm", RUN+="/usr/bin/nvidia-modprobe -u"\n' \
+    > ${OUTPUT}/etc/udev/rules.d/71-nvidia.rules
+
 # ---- Copy glibc runtime ----
+# DIR_ARCH: multiarch directory name (x86_64, aarch64)
+# FILE_ARCH: ld-linux filename suffix (x86-64, aarch64)
 RUN set -eux; \
     if [ "$TARGETARCH" = "amd64" ]; then \
-        ARCH="x86-64"; \
+        DIR_ARCH="x86_64"; FILE_ARCH="x86-64"; \
     elif [ "$TARGETARCH" = "arm64" ]; then \
-        ARCH="aarch64"; \
+        DIR_ARCH="aarch64"; FILE_ARCH="aarch64"; \
     else echo "Unsupported architecture: $TARGETARCH" && exit 1; \
     fi; \
-    GLIBC=/lib/${ARCH}-linux-gnu; \
-    cp -L $GLIBC/ld-linux-${ARCH}.so* ${OUTPUT}/usr/lib/; \
+    GLIBC=/lib/${DIR_ARCH}-linux-gnu; \
+    cp -L $GLIBC/ld-linux-${FILE_ARCH}.so* ${OUTPUT}/usr/lib/; \
     cp -L $GLIBC/libc.so.6 ${OUTPUT}/usr/libc/lib/; \
     cp -L $GLIBC/libpthread.so.0 ${OUTPUT}/usr/libc/lib/; \
     cp -L $GLIBC/libm.so.6 ${OUTPUT}/usr/libc/lib/; \
@@ -145,6 +169,30 @@ RUN cp -a firmware/* ${OUTPUT}/usr/lib/firmware/nvidia/${NVIDIA_VERSION}/
 # this way the modules will autoload and not collide with nouveau
 RUN echo "blacklist nouveau" > ${OUTPUT}/etc/modprobe.d/blacklist-nouveau.conf
 
+# The NVIDIA container runtime hook mounts the host's /sbin/ldconfig into GPU
+# containers so they can rebuild their ld.so cache. Hadron (musl) ships no ldconfig;
+# without it the hook fails with "stat /sbin/ldconfig: no such file or directory"
+# and GPU pods cannot start.
+#
+# On Hadron the layout is:  /sbin -> usr/bin   AND   /usr/sbin -> bin
+# Both /sbin/ldconfig and /usr/sbin/ldconfig therefore resolve to /usr/bin/ldconfig.
+#
+# CRITICAL: do NOT create ${OUTPUT}/usr/sbin/ in this stage. Because we COPY this
+# stage with `--link`, BuildKit overlays the directory entry — and a real directory
+# in our layer would replace the base image's /usr/sbin symlink with an (almost
+# empty) real directory, hiding every binary normally reachable via /usr/sbin
+# (modprobe, init, systemctl, iptables, ...). That in turn breaks the kernel's
+# request_module() auto-loading (kernel reads /proc/sys/kernel/modprobe =
+# /usr/sbin/modprobe), so Cilium fails with "operation not supported" when
+# creating veth/vxlan devices and the whole CNI stack collapses.
+#
+# Place the binary at /usr/bin/ldconfig: the base /usr/bin is a real directory
+# and a normal merge, and all of /sbin/ldconfig, /usr/sbin/ldconfig and
+# /usr/bin/ldconfig resolve here. On Ubuntu 24.04 /sbin/ldconfig is a 387-byte
+# wrapper script that delegates to /sbin/ldconfig.real — copy the real glibc
+# binary directly, not the wrapper.
+RUN cp -a /sbin/ldconfig.real ${OUTPUT}/usr/bin/ldconfig
+
 # This target will copy the built libs or binaries binaries to a minimal image.
 # We can then use this as a layer on top of Hadron to extend it like
 # FROM ghcr.io/kairos-io/hadron:VERSION
@@ -153,6 +201,9 @@ RUN echo "blacklist nouveau" > ${OUTPUT}/etc/modprobe.d/blacklist-nouveau.conf
 FROM scratch AS default
 COPY --from=builder /output/ /
 
-FROM ${BASE_IMAGE}:${HADRON_VERSION} AS hadron-extension
+FROM ${BASE_IMAGE}:${BASE_IMAGE_TAG} AS hadron-extension
 COPY --link --from=modules-builder /output/ /usr/
 COPY --link --from=nvidia-builder /output/ /
+# Regenerate modules.dep with the full module tree (base kernel + nvidia).
+# The modules-builder depmod only saw nvidia modules, overwriting the base image's modules.dep.
+RUN depmod -a $(ls /usr/lib/modules/ | head -1)
