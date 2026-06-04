@@ -435,7 +435,7 @@ jobs:
             BUILD_ARCH=riscv64
 
   hadron-grub:
-    runs-on: ubuntu-24.04-riscv
+    runs-on: oracle-vm-32cpu-128gb-x86-64
     needs: [container]
     strategy:
       matrix:
@@ -486,7 +486,7 @@ jobs:
             BUILD_ARCH=riscv64
 
   build-kairos-grub:
-    runs-on: ubuntu-24.04-riscv
+    runs-on: oracle-vm-32cpu-128gb-x86-64
     needs: [hadron-grub]
     steps:
       - name: Checkout
