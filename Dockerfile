@@ -880,7 +880,7 @@ ENV BUILD=${BUILD_ARCH}-pc-linux-musl
 ENV AR="gcc-ar"
 ENV NM="gcc-nm"
 ENV RANLIB="gcc-ranlib"
-ENV COMMON_CONFIGURE_ARGS="--quiet --prefix=/usr --host=${TARGET} --build=${BUILD} --enable-lto --enable-shared --disable-static"
+ENV COMMON_CONFIGURE_ARGS="--quiet --prefix=/usr --host=${TARGET} --build=${TARGET} --enable-lto --enable-shared --disable-static"
 # Standard aggressive size optimization flags
 ENV CFLAGS="-Os -pipe -fomit-frame-pointer -fno-unroll-loops -fno-asynchronous-unwind-tables -ffunction-sections -fdata-sections -flto=auto"
 ENV LDFLAGS="-Wl,--gc-sections -Wl,--as-needed -flto=auto"
@@ -1325,7 +1325,7 @@ RUN rsync -aHAX --keep-dirlinks  /perl/. /
 COPY --from=sources-downloader /sources/downloads/coreutils.tar.xz /sources/
 RUN cd /sources && \
     tar -xf coreutils.tar.xz && mv coreutils-* coreutils && \
-    cd coreutils && mkdir -p /coreutils && ./configure ${COMMON_CONFIGURE_ARGS} \
+    cd coreutils && mkdir -p /coreutils && FORCE_UNSAFE_CONFIGURE=1 ./configure ${COMMON_CONFIGURE_ARGS} \
     --prefix=/usr \
     --bindir=/bin \
     --sysconfdir=/etc \
@@ -3589,7 +3589,7 @@ ARG BUILD_ARCH="x86_64"
 ENV BUILD_ARCH=${BUILD_ARCH}
 ENV TARGET=${BUILD_ARCH}-${VENDOR}-linux-musl
 ENV BUILD=${BUILD_ARCH}-pc-linux-musl
-ENV COMMON_CONFIGURE_ARGS="--quiet --prefix=/usr --host=${TARGET} --build=${BUILD} --enable-lto --enable-shared --disable-static"
+ENV COMMON_CONFIGURE_ARGS="--quiet --prefix=/usr --host=${TARGET} --build=${TARGET} --enable-lto --enable-shared --disable-static"
 # Standard aggressive size optimization flags
 ENV CFLAGS="-Os -pipe -fomit-frame-pointer -fno-unroll-loops -fno-asynchronous-unwind-tables -ffunction-sections -fdata-sections -flto=auto"
 ENV LDFLAGS="-Wl,--gc-sections -Wl,--as-needed -flto=auto"
