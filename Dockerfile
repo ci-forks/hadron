@@ -3924,6 +3924,7 @@ FROM full-image-merge-base AS full-image-merge-no-fips
 FROM full-image-merge-base AS full-image-merge-fips
 COPY --from=libkcapi /libkcapi /libkcapi
 RUN rsync -aHAX --keep-dirlinks  /libkcapi/. /skeleton
+COPY files/ssh/sshd_config.d/100-hadron-fips.conf /skeleton/etc/ssh/sshd_config.d/100-hadron-fips.conf
 
 
 FROM full-image-merge-${FIPS} AS full-image-merge
