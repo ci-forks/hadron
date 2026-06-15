@@ -310,7 +310,7 @@ ARG MUSL_VERSION=1.2.6
 RUN wget -q http://musl.libc.org/releases/musl-${MUSL_VERSION}.tar.gz -O musl.tar.gz
 
 FROM sources-downloader-base AS gcc-download
-ARG GCC_VERSION=15.2.0
+ARG GCC_VERSION=15.3.0
 RUN wget -q http://mirror.netcologne.de/gnu/gcc/gcc-${GCC_VERSION}/gcc-${GCC_VERSION}.tar.xz -O gcc.tar.xz
 
 FROM sources-downloader-base AS gmp-download
