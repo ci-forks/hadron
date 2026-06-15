@@ -330,7 +330,7 @@ ARG MAKE_VERSION=4.4.1
 RUN wget -q https://mirror.netcologne.de/gnu/make/make-${MAKE_VERSION}.tar.gz -O make.tar.gz
 
 FROM sources-downloader-base AS binutils-download
-ARG BINUTILS_VERSION=2.46.0
+ARG BINUTILS_VERSION=2.46.0.1
 RUN wget -q https://sourceware.org/pub/binutils/releases/binutils-${BINUTILS_VERSION}.tar.xz -O binutils.tar.xz
 
 FROM sources-downloader-base AS popt-download
