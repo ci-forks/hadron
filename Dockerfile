@@ -117,7 +117,7 @@ ARG CA_CERTIFICATES_VERSION=20260611
 RUN wget -q https://gitlab.alpinelinux.org/alpine/ca-certificates/-/archive/${CA_CERTIFICATES_VERSION}/ca-certificates-${CA_CERTIFICATES_VERSION}.tar.bz2 -O ca-certificates.tar.bz2
 
 FROM sources-downloader-base AS systemd-download
-ARG SYSTEMD_VERSION=260.2
+ARG SYSTEMD_VERSION=261
 RUN wget -q https://github.com/systemd/systemd/archive/refs/tags/v${SYSTEMD_VERSION}.tar.gz -O systemd.tar.gz
 
 FROM sources-downloader-base AS libcap-download
@@ -125,7 +125,7 @@ ARG LIBCAP_VERSION=2.78
 RUN wget -q https://kernel.org/pub/linux/libs/security/linux-privs/libcap2/libcap-${LIBCAP_VERSION}.tar.xz -O libcap.tar.xz
 
 FROM sources-downloader-base AS util-linux-download
-ARG UTIL_LINUX_VERSION=2.42.1
+ARG UTIL_LINUX_VERSION=2.42.2
 RUN UTIL_LINUX_VERSION_MAJOR="${UTIL_LINUX_VERSION%%.*}" \
     && UTIL_LINUX_VERSION_MINOR="${UTIL_LINUX_VERSION#*.}"; UTIL_LINUX_VERSION_MINOR="${UTIL_LINUX_VERSION_MINOR%.*}" \
     && wget -q https://www.kernel.org/pub/linux/utils/util-linux/v${UTIL_LINUX_VERSION_MAJOR}.${UTIL_LINUX_VERSION_MINOR}/util-linux-${UTIL_LINUX_VERSION}.tar.xz -O util-linux.tar.xz
@@ -533,7 +533,7 @@ FROM sources-downloader-base AS bash-download
 ARG BASH_VERSION=5.3
 # Patch level is the number of patches upstream bash has released for this version https://ftp.gnu.org/gnu/bash/bash-${BASH_VERSION}-patches/
 # It is bumped separately from BASH_VERSION by updatecli.d/core-system.yaml
-ARG PATCH_LEVEL=9
+ARG PATCH_LEVEL=15
 # Get the patches from https://ftp.gnu.org/gnu/bash/bash-${BASH_VERSION}-patches/
 # They are in the format bash$BASH_VERSION_NO_DOT-NNN where NNN is a 3-digit zero-padded index
 # starting at 001.
@@ -3147,8 +3147,8 @@ RUN mkdir -p /libucontext
 WORKDIR /sources
 RUN tar -xf libucontext.tar.gz && mv libucontext-* libucontext
 WORKDIR /sources/libucontext
-RUN make -s -j${JOBS} ARCH=${BUILD_ARCH} FREESTANDING=yes
-RUN make -s ARCH=${BUILD_ARCH} FREESTANDING=yes install DESTDIR=/libucontext
+RUN make -s -j${JOBS} ARCH=${BUILD_ARCH}
+RUN make -s ARCH=${BUILD_ARCH} install DESTDIR=/libucontext
 
 ## systemd
 ## Try to build it at the end so we have most libraries already built
@@ -3317,6 +3317,8 @@ COPY --from=fts /fts /fts
 RUN rsync -aHAX --keep-dirlinks  /fts/. /
 COPY --from=xz /xz /xz
 RUN rsync -aHAX --keep-dirlinks  /xz/. /
+COPY --from=libucontext /libucontext /libucontext
+RUN rsync -aHAX --keep-dirlinks  /libucontext/. /
 
 COPY --from=sources-downloader /sources/downloads/dracut.tar.gz /sources/
 RUN mkdir -p /dracut
@@ -3349,6 +3351,8 @@ COPY --from=ca-certificates /ca-certificates /ca-certificates
 RUN rsync -aHAX --keep-dirlinks  /ca-certificates/. /
 COPY --from=openssl /openssl /openssl
 RUN rsync -aHAX --keep-dirlinks  /openssl/. /
+COPY --from=libucontext /libucontext /libucontext
+RUN rsync -aHAX --keep-dirlinks  /libucontext/. /
 
 
 COPY --from=sources-downloader /sources/downloads/lvm2.tgz /sources/
@@ -3375,6 +3379,9 @@ RUN rsync -aHAX --keep-dirlinks  /pkgconfig/. /
 # devmapper
 COPY --from=lvm2-systemd /lvm2 /lvm2
 RUN rsync -aHAX --keep-dirlinks  /lvm2/. /
+
+COPY --from=libucontext /libucontext /libucontext
+RUN rsync -aHAX --keep-dirlinks  /libucontext/. /
 
 ## get libudev from systemd
 COPY --from=systemd /systemd /systemd
@@ -3426,6 +3433,8 @@ COPY --from=systemd /systemd /systemd
 RUN rsync -aHAX --keep-dirlinks  /systemd/. /
 COPY --from=libcap /libcap /libcap
 RUN rsync -aHAX --keep-dirlinks  /libcap/. /
+COPY --from=libucontext /libucontext /libucontext
+RUN rsync -aHAX --keep-dirlinks  /libucontext/. /
 COPY --from=sources-downloader /sources/downloads/dbus.tar.xz /sources/
 # install target
 RUN mkdir -p /dbus
@@ -3453,6 +3462,8 @@ COPY --from=libcap /libcap /libcap
 RUN rsync -aHAX --keep-dirlinks  /libcap/. /
 COPY --from=systemd /systemd /systemd
 RUN rsync -aHAX --keep-dirlinks  /systemd/. /
+COPY --from=libucontext /libucontext /libucontext
+RUN rsync -aHAX --keep-dirlinks  /libucontext/. /
 COPY --from=sources-downloader /sources/downloads/pam.tar.xz /sources/
 RUN mkdir -p /pam
 WORKDIR /sources
@@ -3471,6 +3482,8 @@ FROM shadow-base AS shadow-systemd
 ARG JOBS
 COPY --from=pam-systemd /pam /pam
 RUN rsync -aHAX --keep-dirlinks  /pam/. /
+COPY --from=libucontext /libucontext /libucontext
+RUN rsync -aHAX --keep-dirlinks  /libucontext/. /
 COPY --from=systemd /systemd /systemd
 RUN rsync -aHAX --keep-dirlinks  /systemd/. /
 COPY --from=sources-downloader /sources/downloads/shadow.tar.xz /sources/
@@ -3496,6 +3509,8 @@ FROM sudo-base AS sudo-systemd
 ARG JOBS
 COPY --from=pam-systemd /pam /pam
 RUN rsync -aHAX --keep-dirlinks  /pam/. /
+COPY --from=libucontext /libucontext /libucontext
+RUN rsync -aHAX --keep-dirlinks  /libucontext/. /
 COPY --from=sources-downloader /sources/downloads/sudo.tar.gz /sources/
 RUN mkdir -p /sudo
 WORKDIR /sources
@@ -3533,6 +3548,8 @@ COPY --from=perl /perl /perl
 RUN rsync -aHAX --keep-dirlinks  /perl/. /
 COPY --from=libcap /libcap /libcap
 RUN rsync -aHAX --keep-dirlinks  /libcap/. /
+COPY --from=libucontext /libucontext /libucontext
+RUN rsync -aHAX --keep-dirlinks  /libucontext/. /
 
 COPY --from=sources-downloader /sources/downloads/openscsi.tar.gz /sources/
 RUN pip3 install meson ninja
@@ -4184,6 +4201,9 @@ RUN rsync -aHAX --keep-dirlinks  /keyutils/. /skeleton/
 
 COPY --from=nfs-utils /nfs-utils /nfs-utils
 RUN rsync -aHAX --keep-dirlinks  /nfs-utils/. /skeleton/
+
+COPY --from=libucontext /libucontext /libucontext
+RUN rsync -aHAX --keep-dirlinks  /libucontext/. /skeleton
 
 ## systemd
 COPY --from=systemd /systemd /systemd
