@@ -91,6 +91,19 @@ var _ = Describe("hadron container image structure", Label("image-structure"), f
 		return strings.TrimSpace(out), code
 	}
 
+	// skipUnlessFullImage skips specs that assert on bootable-OS hardening files
+	// (sshd config, sysctl, modprobe, login.defs). Those ship only in the full
+	// image (the `default`/full-image-final target); the minimal `container`
+	// target — which CI structure-tests — deliberately omits them. systemd is
+	// present only in the full image, so it is a reliable discriminator.
+	skipUnlessFullImage := func() {
+		out, code := shInImage("test -x /usr/lib/systemd/systemd && echo full")
+		if code != 0 || !strings.Contains(out, "full") {
+			Skip("minimal container base ships no bootable-OS hardening files " +
+				"(sshd/sysctl/modprobe/login.defs); these specs apply to the full image only")
+		}
+	}
+
 	BeforeEach(func() {
 		image = os.Getenv("CONTAINER_IMAGE")
 		if image == "" {
@@ -194,4 +207,92 @@ var _ = Describe("hadron container image structure", Label("image-structure"), f
 		Entry("/lib -> usr/lib", "/lib", "usr"),
 		Entry("/bin -> usr/bin", "/bin", "usr"),
 	)
+
+	It("ships a valid, STIG-hardened sshd config (sshd -G parses cleanly)", func() {
+		skipUnlessFullImage()
+		out, code, err := runInImage("sshd", "-G")
+		Expect(err).ToNot(HaveOccurred(), out)
+		Expect(code).To(Equal(0), "sshd -G failed to parse the sshd config:\n%s", out)
+		lc := strings.ToLower(out)
+		for _, want := range []string{
+			"permitrootlogin prohibit-password",
+			"x11forwarding no",
+			"maxauthtries 4",
+		} {
+			Expect(lc).To(ContainSubstring(want), "effective sshd config missing %q", want)
+		}
+	})
+
+	It("STIG sshd drop-in carries no crypto keywords (FIPS-safety invariant)", func() {
+		skipUnlessFullImage()
+		// The STIG drop-in sorts before the 100-* crypto file and sshd is
+		// first-value-wins for these keywords, so crypto here would silently
+		// override FIPS crypto in FIPS images. Guard against a regression.
+		out, code := shInImage("cat /etc/ssh/sshd_config.d/99-hadron-stig.conf")
+		Expect(code).To(Equal(0), out)
+		lc := strings.ToLower(out)
+		for _, k := range []string{"ciphers", "macs", "kexalgorithms", "hostkeyalgorithms"} {
+			Expect(lc).ToNot(MatchRegexp(`(?m)^[[:space:]]*`+k+`[[:space:]]`),
+				"STIG drop-in must not set crypto keyword %q (breaks FIPS ordering)", k)
+		}
+	})
+
+	It("ships the STIG sysctl hardening drop-in", func() {
+		skipUnlessFullImage()
+		out, code := shInImage("cat /etc/sysctl.d/60-hadron-hardening.conf")
+		Expect(code).To(Equal(0), out)
+		for _, want := range []string{
+			"kernel.kptr_restrict = 1",
+			"kernel.dmesg_restrict = 1",
+			"fs.protected_symlinks = 1",
+			"net.ipv4.tcp_syncookies = 1",
+		} {
+			Expect(out).To(ContainSubstring(want),
+				"sysctl hardening drop-in missing %q", want)
+		}
+	})
+
+	It("sysctl hardening drop-in omits keys that break Kubernetes", func() {
+		skipUnlessFullImage()
+		// Forwarding, rp_filter, bridge-nf and user namespaces are owned by the
+		// CNI/kubelet; shipping STIG's restrictive values for them breaks a k8s
+		// node. Guard against a regression — checked against ACTIVE lines only so
+		// the documented "DELIBERATELY OMITTED" comments don't trip the match.
+		out, code := shInImage("cat /etc/sysctl.d/60-hadron-hardening.conf")
+		Expect(code).To(Equal(0), out)
+		var active strings.Builder
+		for _, line := range strings.Split(out, "\n") {
+			t := strings.TrimSpace(line)
+			if t == "" || strings.HasPrefix(t, "#") {
+				continue
+			}
+			active.WriteString(t + "\n")
+		}
+		for _, forbidden := range []string{
+			"ip_forward", ".forwarding", "rp_filter",
+			"bridge-nf-call", "max_user_namespaces",
+		} {
+			Expect(active.String()).ToNot(ContainSubstring(forbidden),
+				"drop-in must not set Kubernetes/CNI-owned key %q", forbidden)
+		}
+	})
+
+	It("ships the legacy-network-protocol blacklist", func() {
+		skipUnlessFullImage()
+		out, code := shInImage("cat /etc/modprobe.d/disable-legacy-net-protocols.conf")
+		Expect(code).To(Equal(0), out)
+		for _, mod := range []string{"dccp", "rds", "tipc", "atm", "ax25", "netrom"} {
+			Expect(out).To(MatchRegexp(`(?m)^install\s+`+mod+`\s+/bin/false`),
+				"blacklist must disable %q via install /bin/false", mod)
+		}
+	})
+
+	It("ships STIG-hardened login.defs", func() {
+		skipUnlessFullImage()
+		out, code := shInImage("cat /etc/login.defs")
+		Expect(code).To(Equal(0), out)
+		Expect(out).To(MatchRegexp(`(?m)^PASS_MAX_DAYS\s+60\b`), "PASS_MAX_DAYS should be 60")
+		Expect(out).To(MatchRegexp(`(?m)^LOG_OK_LOGINS\s+yes\b`), "LOG_OK_LOGINS should be yes")
+		Expect(out).To(MatchRegexp(`(?m)^UMASK\s+077\b`), "UMASK should be 077")
+	})
 })

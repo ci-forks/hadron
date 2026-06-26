@@ -12,10 +12,15 @@ import (
 )
 
 // fipsEnabled reports whether the suite is running in FIPS mode.
-// FIPS remains a runtime env flag (CI sets FIPS=true on the tests-bios-fips job),
+// FIPS remains a runtime env flag (CI currently uses both `fips` and `true`),
 // so detection stays centralized here rather than scattered across specs.
 func fipsEnabled() bool {
-	return os.Getenv("FIPS") == "fips"
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("FIPS"))) {
+	case "fips", "true", "1", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 // assertFIPSEnabled verifies the kernel has FIPS mode enabled.
@@ -100,4 +105,122 @@ func assertKairosState(vm VM) {
 	stateAssertVM(vm, "kairos.version", strings.ReplaceAll(strings.ReplaceAll(currentVersion, "\r", ""), "\n", ""))
 	stateContains(vm, "system.os.name", "hadron")
 	stateContains(vm, "kairos.flavor", "hadron")
+}
+
+// assertSSHHardening verifies the STIG sshd policy hardening is in effect on a
+// booted node. Uses `sshd -T` (effective config dump; host keys exist at
+// runtime via sshkeygen.service). Keyword names in -T output are lowercased.
+func assertSSHHardening(vm VM) {
+	By("checking sshd STIG policy hardening is effective", func() {
+		cfg, err := vm.Sudo("sshd -T")
+		Expect(err).ToNot(HaveOccurred(), cfg)
+		lc := strings.ToLower(cfg)
+		for _, want := range []string{
+			"permitrootlogin prohibit-password",
+			"permitemptypasswords no",
+			"permituserenvironment no",
+			"ignorerhosts yes",
+			"hostbasedauthentication no",
+			"x11forwarding no",
+			"allowtcpforwarding no",
+			"maxauthtries 4",
+			"logingracetime 60",
+			"clientaliveinterval 600",
+			"clientalivecountmax 1",
+		} {
+			Expect(lc).To(ContainSubstring(want), "expected effective sshd config to contain %q", want)
+		}
+	})
+	By("checking password auth stays enabled (Kairos provisions users with passwords)", func() {
+		cfg, err := vm.Sudo("sshd -T")
+		Expect(err).ToNot(HaveOccurred(), cfg)
+		Expect(strings.ToLower(cfg)).To(ContainSubstring("passwordauthentication yes"))
+	})
+}
+
+// assertSSHCrypto verifies the sshd crypto matches the image's FIPS posture and,
+// critically, that the STIG drop-in did NOT override the FIPS crypto in FIPS
+// images (it sorts before the 100-* crypto file and sshd is first-value-wins).
+func assertSSHCrypto(vm VM) {
+	By("checking sshd crypto matches the FIPS posture", func() {
+		cfg, err := vm.Sudo("sshd -T")
+		Expect(err).ToNot(HaveOccurred(), cfg)
+		lc := strings.ToLower(cfg)
+		Expect(lc).To(ContainSubstring("aes256-gcm@openssh.com"))
+		if fipsEnabled() {
+			Expect(lc).ToNot(ContainSubstring("chacha20-poly1305"), "FIPS image must not offer chacha20 (STIG drop-in must not override FIPS crypto)")
+			Expect(lc).ToNot(ContainSubstring("curve25519"), "FIPS image must not offer curve25519")
+			Expect(lc).To(ContainSubstring("kexalgorithms ecdh-sha2-nistp256"))
+		} else {
+			Expect(lc).To(ContainSubstring("chacha20-poly1305"))
+			Expect(lc).To(ContainSubstring("curve25519-sha256"))
+		}
+	})
+}
+
+// assertSysctlHardening verifies the GPOS/STIG sysctl baseline is applied on a
+// booted node and, critically, that `sysctl --system` returns success: a key
+// absent from the running kernel would make it fail, so the config-dependent
+// keys (yama/kexec/sysrq/perf/bpf_jit) use the "-" ignore-if-missing prefix.
+// Only universally-present keys are value-asserted here; the config-dependent
+// ones and the k8s-safety omissions are checked structurally in the
+// image-structure suite.
+func assertSysctlHardening(vm VM) {
+	By("checking sysctl --system applies cleanly (no missing-key failures)", func() {
+		out, err := vm.Sudo("sysctl --system")
+		Expect(err).ToNot(HaveOccurred(), out)
+	})
+	By("checking hardened sysctl values are in effect", func() {
+		want := map[string]string{
+			"kernel.kptr_restrict":                  "1",
+			"kernel.dmesg_restrict":                 "1",
+			"kernel.randomize_va_space":             "2",
+			"kernel.unprivileged_bpf_disabled":      "1",
+			"fs.suid_dumpable":                      "0",
+			"fs.protected_symlinks":                 "1",
+			"fs.protected_hardlinks":                "1",
+			"net.ipv4.conf.all.accept_redirects":    "0",
+			"net.ipv4.conf.all.accept_source_route": "0",
+			"net.ipv6.conf.all.accept_redirects":    "0",
+		}
+		for key, val := range want {
+			out, err := vm.Sudo("sysctl -n " + key)
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(strings.TrimSpace(out)).To(Equal(val), "sysctl %s should be %s", key, val)
+		}
+	})
+}
+
+// assertLegacyNetDisabled verifies the legacy network protocol modules (DCCP,
+// RDS, TIPC, ATM, AX25, NETROM) are blocked from loading via modprobe.d.
+func assertLegacyNetDisabled(vm VM) {
+	By("checking legacy network protocols are blocked from loading", func() {
+		for _, mod := range []string{"dccp", "rds", "tipc", "atm", "ax25", "netrom"} {
+			// modprobe -n -v is a config-based dry run: with `install <mod>
+			// /bin/false` it resolves to /bin/false and exits 0 even when the
+			// module is not compiled, so this check is kernel-variant-agnostic.
+			out, err := vm.Sudo("modprobe -n -v " + mod)
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(out).To(ContainSubstring("/bin/false"),
+				"module %s must be blocked by install /bin/false", mod)
+			// A real load attempt must not actually load it.
+			vm.Sudo("modprobe " + mod + " >/dev/null 2>&1 || true")
+			lsmod, err := vm.Sudo("lsmod")
+			Expect(err).ToNot(HaveOccurred(), lsmod)
+			Expect(lsmod).ToNot(MatchRegexp("(?m)^"+mod+`\\b`),
+				"module %s must not be loaded", mod)
+		}
+	})
+}
+
+// assertLoginDefsHardening verifies the STIG login.defs hardening (password max
+// age, successful-login logging, restrictive default umask) on a booted node.
+func assertLoginDefsHardening(vm VM) {
+	By("checking login.defs STIG hardening values", func() {
+		out, err := vm.Sudo("cat /etc/login.defs")
+		Expect(err).ToNot(HaveOccurred(), out)
+		Expect(out).To(MatchRegexp(`(?m)^PASS_MAX_DAYS\s+60\b`), "PASS_MAX_DAYS should be 60")
+		Expect(out).To(MatchRegexp(`(?m)^LOG_OK_LOGINS\s+yes\b`), "LOG_OK_LOGINS should be yes")
+		Expect(out).To(MatchRegexp(`(?m)^UMASK\s+077\b`), "UMASK should be 077")
+	})
 }

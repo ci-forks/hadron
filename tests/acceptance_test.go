@@ -155,6 +155,12 @@ var _ = Describe("kairos basic test", func() {
 
 		assertNetworking(vm)
 
+		assertSSHHardening(vm)
+		assertSSHCrypto(vm)
+		assertSysctlHardening(vm)
+		assertLegacyNetDisabled(vm)
+		assertLoginDefsHardening(vm)
+
 		By("checking custom CA installation", func() {
 			out, err := vm.Sudo(`set -eu
 # On a booted Kairos node the persistent partition mounts over /usr/local,
@@ -193,6 +199,16 @@ openssl x509 -in /etc/ssl/certs/ca-cert-hadron-custom-ca.pem -noout -subject`)
 
 			out, err = vm.Sudo("sysctl --system")
 			Expect(err).ToNot(HaveOccurred(), out)
+		})
+
+		By("checking SYN cookies are available (CONFIG_SYN_COOKIES)", func() {
+			// CONFIG_SYN_COOKIES is now enabled on every kernel variant (it was
+			// absent on cloud/riscv64), so net.ipv4.tcp_syncookies exists and
+			// defaults to 1. This is what lets the sysctl hardening baseline
+			// actually enforce SYN-flood protection on the cloud kernel.
+			out, err := vm.Sudo("sysctl -n net.ipv4.tcp_syncookies")
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(strings.TrimSpace(out)).To(Equal("1"))
 		})
 
 		By("checking corresponding state", func() {
