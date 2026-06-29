@@ -286,6 +286,70 @@ jobs:
           build-args: |
             BOOTLOADER=systemd
             KERNEL_TYPE=${{ matrix.kernel }}
+  component-versions-report:
+    # Informational only: posts a single sticky PR comment with a collapsed
+    # section per image showing the full component/version table.
+    # Runs on ubuntu-latest (no Docker needed; script reads from the worktree).
+    # Never fails the pipeline.
+    runs-on: ubuntu-latest
+    needs:
+      - hadron-bios
+      - hadron-trusted
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Generate combined component versions report
+        run: |
+          SHA="${{ github.sha }}"
+          mkdir -p /tmp/components
+
+          # container image
+          sh hack/gen-components.sh \
+            --shipped "stage2-merge" \
+            --format md --name container --out-dir /tmp/components
+
+          # full-image bios / no-fips
+          sh hack/gen-components.sh \
+            --shipped "stage2-merge full-image-merge-base full-image-merge-no-fips full-image-pre-grub full-image-pre-preset full-image-final" \
+            --format md --name full-image-bios-no-fips --out-dir /tmp/components
+
+          # full-image bios / fips (openssl version swapped)
+          sh hack/gen-components.sh \
+            --shipped "stage2-merge full-image-merge-base full-image-merge-fips full-image-pre-grub full-image-pre-preset full-image-final" \
+            --override openssl=OPENSSL_FIPS_VERSION \
+            --format md --name full-image-bios-fips --out-dir /tmp/components
+
+          # full-image trusted / no-fips
+          sh hack/gen-components.sh \
+            --shipped "stage2-merge full-image-merge-base full-image-merge-no-fips full-image-pre-systemd full-image-pre-preset full-image-final" \
+            --format md --name full-image-trusted --out-dir /tmp/components
+
+          {
+            printf '## 🧩 Component versions (amd64)\n\n'
+
+            for variant in \
+              "container|ttl.sh/hadron-container-amd64:${SHA}|container (stage2-merge)" \
+              "full-image-bios-no-fips|ttl.sh/hadron-cloud-amd64:${SHA}|bios / no-fips" \
+              "full-image-bios-fips|ttl.sh/hadron-cloud-fips-amd64:${SHA}|bios / fips" \
+              "full-image-trusted|ttl.sh/hadron-cloud-trusted-${SHA}:24h|trusted (systemd / no-fips)"
+            do
+              name="${variant%%|*}"; rest="${variant#*|}"
+              image="${rest%%|*}"; label="${rest#*|}"
+              printf '<details>\n<summary><code>%s</code> — <code>%s</code></summary>\n\n' "$label" "$image"
+              cat "/tmp/components/${name}.md"
+              printf '\n</details>\n\n'
+            done
+          } > /tmp/component-comment.md
+      - name: Post sticky PR comment
+        # Fork PRs only get a read-only token; never block the pipeline on it.
+        continue-on-error: true
+        uses: marocchino/sticky-pull-request-comment@v3.0.4
+        with:
+          header: component-versions-report
+          path: /tmp/component-comment.md
   build-kairos-bios:
     runs-on: ubuntu-latest
     needs:
