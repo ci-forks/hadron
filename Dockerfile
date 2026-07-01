@@ -104,11 +104,11 @@ ARG ZLIB_VERSION=1.3.2
 RUN wget -q https://zlib.net/fossils/zlib-${ZLIB_VERSION}.tar.gz -O zlib.tar.gz
 
 FROM sources-downloader-base AS acl-download
-ARG ACL_VERSION=2.3.2
+ARG ACL_VERSION=2.4.0
 RUN wget -q https://download.savannah.gnu.org/releases/acl/acl-${ACL_VERSION}.tar.gz -O acl.tar.gz
 
 FROM sources-downloader-base AS attr-download
-ARG ATTR_VERSION=2.5.2
+ARG ATTR_VERSION=2.6.0
 RUN wget -q https://download.savannah.nongnu.org/releases/attr/attr-${ATTR_VERSION}.tar.gz -O attr.tar.gz
 
 FROM sources-downloader-base AS gawk-download
@@ -167,7 +167,7 @@ RUN wget -q https://dbus.freedesktop.org/releases/dbus/dbus-${DBUS_VERSION}.tar.
 
 FROM sources-downloader-base AS expat-download
 # libexpat
-ARG EXPAT_VERSION=2.8.1
+ARG EXPAT_VERSION=2.8.2
 # Use a single var and extract major/minor/patch to build the URL
 RUN EXPAT_VERSION_MAJOR="${EXPAT_VERSION%%.*}" \
  && EXPAT_VERSION_MINOR="${EXPAT_VERSION#*.}"; EXPAT_VERSION_MINOR="${EXPAT_VERSION_MINOR%.*}" \
@@ -301,7 +301,7 @@ ARG MULTIPATH_TOOLS_VERSION=0.14.3
 RUN wget -q https://github.com/opensvc/multipath-tools/archive/refs/tags/${MULTIPATH_TOOLS_VERSION}.tar.gz -O multipath-tools.tar.gz
 
 FROM sources-downloader-base AS json-c-download
-ARG JSONC_VERSION=0.18
+ARG JSONC_VERSION=0.19
 RUN wget -q https://s3.amazonaws.com/json-c_releases/releases/json-c-${JSONC_VERSION}.tar.gz -O json-c.tar.gz
 
 FROM sources-downloader-base AS cmake-download
