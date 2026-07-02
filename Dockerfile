@@ -1135,18 +1135,12 @@ RUN mkdir -p /sources && cd /sources && tar -xf lz4.tar.gz && mv lz4-* lz4 && \
 FROM lz4 AS attr
 ARG JOBS
 COPY --from=sources-downloader /sources/downloads/attr.tar.gz /sources/
-COPY --from=sources-downloader /sources/downloads/aports.tar.gz /sources/patches/
 
 RUN mkdir -p /attr
 
-# extract the aport patch to apply to attr
-WORKDIR /sources/patches
-RUN tar -xf aports.tar.gz && mv aports-* aport
 WORKDIR /sources
 RUN tar -xf attr.tar.gz && mv attr-* attr
 WORKDIR /sources/attr
-# TODO: Its fixed on attr master so we can drop this patch when they do a new release
-RUN patch -p1 < /sources/patches/aport/main/attr/attr-basename.patch
 RUN ./configure ${COMMON_CONFIGURE_ARGS} --disable-dependency-tracking --sysconfdir=/etc \
     --mandir=/usr/share/man \
     --localstatedir=/var \
