@@ -158,7 +158,7 @@ ARG OPENSSH_VERSION=10.3p1
 RUN wget -q https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-${OPENSSH_VERSION}.tar.gz -O openssh.tar.gz
 
 FROM sources-downloader-base AS pkgconf-download
-ARG PKGCONFIG_VERSION=2.9.90
+ARG PKGCONFIG_VERSION=2.9.96
 RUN wget -q https://distfiles.dereferenced.org/pkgconf/pkgconf-${PKGCONFIG_VERSION}.tar.xz -O pkgconf.tar.xz
 
 FROM sources-downloader-base AS dbus-download
@@ -229,7 +229,7 @@ ARG PROCPS_NG_VERSION=4.0.6
 RUN wget -q https://downloads.sourceforge.net/project/procps-ng/Production/procps-ng-${PROCPS_NG_VERSION}.tar.xz -O procps-ng.tar.xz
 
 FROM sources-downloader-base AS linux-download
-ARG KERNEL_VERSION=7.1.1
+ARG KERNEL_VERSION=7.1.2
 RUN wget -q https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-${KERNEL_VERSION}.tar.xz -O linux.tar.xz
 
 FROM sources-downloader-base AS flex-download
