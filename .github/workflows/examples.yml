@@ -2,9 +2,9 @@ name: Build examples
 
 on:
   workflow_dispatch:
-  push:
+  pull_request:
     paths:
-      - '../../examples/add-packages/**'
+      - 'examples/add-packages/**'
       - '.github/workflows/examples.yml'
 
 jobs:
