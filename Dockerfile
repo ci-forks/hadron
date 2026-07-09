@@ -4132,8 +4132,15 @@ RUN rm -f /etc/passwd /etc/shadow /etc/group /etc/gshadow
 COPY files/systemd/00-root.conf /etc/sysusers.d/00-root.conf
 ## Create any missing users from scratch
 RUN systemd-sysusers
-## Link /lib/firmware into /usr/local/lib/firmware for firmware loading
-RUN mkdir -p /usr/local/lib && ln -s /lib/firmware /usr/local/lib/firmware
+## Firmware lives at /usr/local/lib/firmware so it is sysext-compatible and can
+## be overridden by a persistent-partition mount; /lib/firmware is a symlink
+## into it so the kernel's default fw search path still resolves. Additive
+## composers (COPY --from=<fw> / /) can drop files at /usr/local/lib/firmware/*
+## without hitting the "cannot copy to non-directory" buildkit error you get
+## when the real directory sits under /lib/firmware and /usr/local is the link.
+RUN rm -rf /lib/firmware && \
+    mkdir -p /usr/local/lib/firmware && \
+    ln -s /usr/local/lib/firmware /lib/firmware
 ## Symlink ld-musl-$ARCH.so to /bin/ldd to provide ldd functionality
 RUN rm /bin/ldd
 RUN if [ "${BUILD_ARCH}" == "aarch64" ]; then \
