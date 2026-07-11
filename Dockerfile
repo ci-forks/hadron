@@ -112,7 +112,7 @@ ARG ATTR_VERSION=2.6.0
 RUN wget -q https://download.savannah.nongnu.org/releases/attr/attr-${ATTR_VERSION}.tar.gz -O attr.tar.gz
 
 FROM sources-downloader-base AS gawk-download
-ARG GAWK_VERSION=5.4.0
+ARG GAWK_VERSION=5.4.1
 RUN for mirror in ${GNU_MIRROR_1} ${GNU_MIRROR_2} ${GNU_MIRROR_3}; do \
         wget -q "${mirror}/gawk/gawk-${GAWK_VERSION}.tar.xz" -O gawk.tar.xz && break; \
         rm -f gawk.tar.xz; \
@@ -158,7 +158,7 @@ ARG OPENSSH_VERSION=10.4p1
 RUN wget -q https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-${OPENSSH_VERSION}.tar.gz -O openssh.tar.gz
 
 FROM sources-downloader-base AS pkgconf-download
-ARG PKGCONFIG_VERSION=2.9.98
+ARG PKGCONFIG_VERSION=3.0.0
 RUN wget -q https://distfiles.dereferenced.org/pkgconf/pkgconf-${PKGCONFIG_VERSION}.tar.xz -O pkgconf.tar.xz
 
 FROM sources-downloader-base AS dbus-download
@@ -305,7 +305,7 @@ ARG JSONC_VERSION=0.19
 RUN wget -q https://s3.amazonaws.com/json-c_releases/releases/json-c-${JSONC_VERSION}.tar.gz -O json-c.tar.gz
 
 FROM sources-downloader-base AS cmake-download
-ARG CMAKE_VERSION=4.3.4
+ARG CMAKE_VERSION=4.4.0
 RUN wget -q https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}.tar.gz -O cmake.tar.gz
 
 FROM sources-downloader-base AS urcu-download
@@ -510,7 +510,7 @@ ARG GDB_VERSION=17.2
 RUN wget -q https://sourceware.org/pub/gdb/releases/gdb-${GDB_VERSION}.tar.gz -O gdb.tar.gz
 
 FROM sources-downloader-base AS libffi-download
-ARG LIBFFI_VERSION=3.6.0
+ARG LIBFFI_VERSION=3.7.1
 RUN wget -q https://github.com/libffi/libffi/releases/download/v${LIBFFI_VERSION}/libffi-${LIBFFI_VERSION}.tar.gz -O libffi.tar.gz
 
 FROM sources-downloader-base AS tpm2-tss-download
@@ -1830,7 +1830,6 @@ RUN ./configure ${COMMON_CONFIGURE_ARGS} \
 
 RUN make -s -j${JOBS} -l${MAX_LOAD}
 RUN make -s -j${JOBS} -l${MAX_LOAD} DESTDIR=/openssh install
-RUN make -s -j${JOBS} -l${MAX_LOAD} install
 ## Provide the proper files and dirs for sshd to run properly with systemd
 COPY files/systemd/sshd.service /openssh/usr/lib/systemd/system/sshd.service
 COPY files/systemd/sshkeygen.service /openssh/usr/lib/systemd/system/sshkeygen.service
