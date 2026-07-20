@@ -308,6 +308,26 @@ FROM sources-downloader-base AS cmake-download
 ARG CMAKE_VERSION=4.4.0
 RUN wget -q https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}.tar.gz -O cmake.tar.gz
 
+FROM sources-downloader-base AS dwarves-download
+ARG DWARVES_VERSION=1.31
+RUN wget -q https://github.com/acmel/dwarves/archive/refs/tags/v${DWARVES_VERSION}.tar.gz -O dwarves.tar.xz
+
+FROM sources-downloader-base AS libbpf-download
+ARG LIBBPF_VERSION=1.5.0
+RUN wget -q https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz -O libbpf.tar.gz
+
+FROM sources-downloader-base AS argp-standalone-download
+ARG ARGP_STANDALONE_VERSION=1.4.1
+RUN wget -q https://github.com/argp-standalone/argp-standalone/archive/refs/tags/${ARGP_STANDALONE_VERSION}.tar.gz -O argp-standalone.tar.gz
+
+FROM sources-downloader-base AS musl-obstack-download
+ARG MUSL_OBSTACK_VERSION=1.2.3
+RUN wget -q https://github.com/void-linux/musl-obstack/archive/refs/tags/v${MUSL_OBSTACK_VERSION}.tar.gz -O musl-obstack.tar.gz
+
+FROM sources-downloader-base AS elfutils-download
+ARG ELFUTILS_VERSION=0.195
+RUN wget -q https://sourceware.org/elfutils/ftp/${ELFUTILS_VERSION}/elfutils-${ELFUTILS_VERSION}.tar.bz2 -O elfutils.tar.bz2
+
 FROM sources-downloader-base AS urcu-download
 ARG URCU_VERSION=0.15.6
 RUN wget -q https://lttng.org/files/urcu/userspace-rcu-${URCU_VERSION}.tar.bz2 -O urcu.tar.bz2
@@ -718,6 +738,11 @@ COPY --from=libnetfilter_cthelper-download /sources/downloads/libnetfilter_cthel
 COPY --from=libnetfilter_queue-download /sources/downloads/libnetfilter_queue.tar.bz2 /sources/downloads/
 COPY --from=conntrack-tools-download /sources/downloads/conntrack-tools.tar.xz /sources/downloads/
 COPY --from=procps-ng-download /sources/downloads/procps-ng.tar.xz /sources/downloads/
+COPY --from=dwarves-download /sources/downloads/dwarves.tar.xz /sources/downloads/
+COPY --from=libbpf-download /sources/downloads/libbpf.tar.gz /sources/downloads/
+COPY --from=argp-standalone-download /sources/downloads/argp-standalone.tar.gz /sources/downloads/
+COPY --from=musl-obstack-download /sources/downloads/musl-obstack.tar.gz /sources/downloads/
+COPY --from=elfutils-download /sources/downloads/elfutils.tar.bz2 /sources/downloads/
 
 ########################################################
 #
@@ -1999,6 +2024,86 @@ RUN make -j${JOBS} PREFIX=/usr DESTDIR=/libelf
 RUN make -j${JOBS} PREFIX=/usr DESTDIR=/libelf install-headers install-shared
 
 
+## argp-standalone — provides argp_parse for musl (required by elfutils configure)
+FROM rsync AS argp
+ARG JOBS
+# LTO stripped: libargp.a is linked into elfutils libdw.so, and its bundled -Werror=stack-usage=
+# fires during ltrans re-compile of argp-help.c. Build argp without LTO so consumers can link cleanly.
+ENV CFLAGS="-Os -pipe -fomit-frame-pointer -fno-unroll-loops -fno-asynchronous-unwind-tables -ffunction-sections -fdata-sections"
+COPY --from=sources-downloader /sources/downloads/argp-standalone.tar.gz /sources/
+WORKDIR /sources
+RUN tar -xf argp-standalone.tar.gz && mv argp-standalone-* argp
+WORKDIR /sources/argp
+RUN gcc ${CFLAGS} -fPIC -I. \
+      -c argp-ba.c argp-eexst.c argp-fmtstream.c argp-help.c argp-parse.c argp-pv.c argp-pvh.c && \
+    gcc-ar rcs libargp.a argp-ba.o argp-eexst.o argp-fmtstream.o argp-help.o argp-parse.o argp-pv.o argp-pvh.o && \
+    mkdir -p /argp/usr/lib /argp/usr/include && \
+    cp libargp.a /argp/usr/lib/libargp.a && \
+    cp libargp.a /usr/lib/libargp.a && \
+    cp argp.h /argp/usr/include/argp.h && \
+    cp argp.h /usr/include/argp.h
+
+## musl-obstack — provides obstack functions for musl (required by elfutils configure)
+FROM rsync AS obstack
+ARG JOBS
+ENV CFLAGS="$CFLAGS -fPIC"
+COPY --from=autoconf /autoconf/ /
+COPY --from=automake /automake/ /
+COPY --from=m4 /m4/ /
+COPY --from=perl /perl/ /
+COPY --from=libtool /libtool/ /
+COPY --from=pkgconfig /pkgconfig/ /
+COPY --from=sources-downloader /sources/downloads/musl-obstack.tar.gz /sources/
+RUN mkdir -p /sources && cd /sources && tar -xf musl-obstack.tar.gz && mv musl-obstack-* obstack && \
+    cd obstack && ./bootstrap.sh && \
+    ./configure ${COMMON_CONFIGURE_ARGS} --disable-dependency-tracking --prefix=/usr --localstatedir=/var --sysconfdir=/etc && \
+    make -j${JOBS} DESTDIR=/obstack install && make -j${JOBS} install
+
+## elfutils — provides libdw (DWARF library) and libelf needed by pahole/dwarves for BTF generation
+FROM fts AS elfutils
+ARG JOBS
+# elfutils must NOT use LTO: lto-wrapper re-invokes make with elfutils' own -Werror=stack-usage=
+# which causes argp-help.c to fail with "stack usage might be unbounded".
+# Docker ENV does not support bash ${VAR//pat/sub} substitution, so set flags directly.
+ENV CFLAGS="-Os -pipe -fomit-frame-pointer -fno-unroll-loops -fno-asynchronous-unwind-tables -ffunction-sections -fdata-sections"
+ENV LDFLAGS="-Wl,--gc-sections -Wl,--as-needed"
+COPY --from=argp /argp/ /
+COPY --from=obstack /obstack/ /
+COPY --from=zlib /zlib/ /
+COPY --from=sources-downloader /sources/downloads/elfutils.tar.bz2 /sources/
+RUN mkdir -p /elfutils
+WORKDIR /sources
+RUN tar -xf elfutils.tar.bz2 && mv elfutils-* elfutils
+WORKDIR /sources/elfutils
+RUN ./configure ${COMMON_CONFIGURE_ARGS} \
+    --disable-lto \
+    --without-bzlib \
+    --without-lzma \
+    --disable-debuginfod \
+    --disable-libdebuginfod \
+    --disable-nls
+RUN make -j${JOBS} -C lib && \
+    make -j${JOBS} -C libelf && \
+    make -j${JOBS} -C libcpu && \
+    make -j${JOBS} -C libebl && \
+    make -j${JOBS} -C backends && \
+    make -j${JOBS} -C libdwelf && \
+    make -j${JOBS} -C libdwfl && \
+    make -j${JOBS} -C libdwfl_stacktrace && \
+    make -j${JOBS} -C libdw && \
+    make -C libelf install DESTDIR=/elfutils && \
+    make -C backends install DESTDIR=/elfutils && \
+    make -C libdw install DESTDIR=/elfutils && \
+    make -C libdwfl install DESTDIR=/elfutils && \
+    make -C libdwelf install DESTDIR=/elfutils && \
+    install -Dm644 version.h /elfutils/usr/include/elfutils/version.h
+# libbpf's pkg-config file lists libelf as a dependency; ship libelf.pc / libdw.pc so
+# pkg_check_modules(libbpf) succeeds in downstream stages (pahole).
+RUN install -Dm644 config/libelf.pc /elfutils/usr/lib/pkgconfig/libelf.pc && \
+    install -Dm644 config/libdw.pc  /elfutils/usr/lib/pkgconfig/libdw.pc
+RUN rm -rf /elfutils/usr/share
+
+
 FROM rsync AS diffutils
 ARG JOBS
 RUN mkdir -p /diffutils
@@ -2038,6 +2143,73 @@ RUN ./configure ${COMMON_CONFIGURE_ARGS} --disable-dependency-tracking --prefix=
 RUN make -s -j${JOBS} -l${MAX_LOAD} && make -s -j${JOBS} -l${MAX_LOAD} install LIBDIR=lib BINDIR=/bin DESTDIR=/libkcapi
 RUN ln -s kcapi-hasher /libkcapi/usr/bin/sha512hmac
 RUN rm -Rf /libkcapi/usr/share /libkcapi/usr/lib/pkgconfig /libkcapi/usr/include /libkcapi/usr/libexec /libkcapi/usr/lib/*.la
+
+# TODO: Once a new jsonc version is released (0.19) they will have meson support
+# which means we can drop cmake buiilding which is very slow and heavy
+FROM rsync AS cmake
+ARG JOBS
+# Disable lto for cmake as it gives us nothing but issues
+ENV CFLAGS="${CFLAGS//-flto=auto/}"
+ENV LDFLAGS="${LDFLAGS//-flto=auto/}"
+COPY --from=curl /curl/ /
+COPY --from=openssl /openssl/ /
+COPY --from=sources-downloader /sources/downloads/cmake.tar.gz /sources/
+
+RUN mkdir -p /cmake
+WORKDIR /sources
+RUN tar -xf cmake.tar.gz && mv cmake-* cmake
+WORKDIR /sources/cmake
+
+RUN ./bootstrap --prefix=/usr --no-debugger  --parallel=${JOBS}
+RUN make -s -j${JOBS} -l${MAX_LOAD} && make -s -j${JOBS} -l${MAX_LOAD} install DESTDIR=/cmake
+
+## libbpf — required by pahole; dwarves upstream ships it as a git submodule which the
+## GitHub tarball omits, so we build the standalone release and enable LIBBPF_EMBEDDED=OFF.
+FROM rsync AS libbpf
+ARG JOBS
+COPY --from=elfutils /elfutils/ /
+COPY --from=zlib /zlib/ /
+COPY --from=pkgconfig /pkgconfig/ /
+COPY --from=sources-downloader /sources/downloads/libbpf.tar.gz /sources/
+WORKDIR /sources
+RUN tar -xf libbpf.tar.gz && mv libbpf-* libbpf
+WORKDIR /sources/libbpf/src
+RUN mkdir -p /libbpf
+RUN make -j${JOBS} PREFIX=/usr LIBDIR=/usr/lib && \
+    make PREFIX=/usr LIBDIR=/usr/lib DESTDIR=/libbpf install && \
+    make PREFIX=/usr LIBDIR=/usr/lib DESTDIR=/libbpf install_uapi_headers
+# Install into the build root too so pkg-config from the pahole stage finds it.
+RUN cp -a /libbpf/usr/. /usr/
+
+## pahole (dwarves) — required by the kernel to generate BTF from DWARF debug info
+FROM fts AS pahole
+ARG JOBS
+COPY --from=cmake /cmake/ /
+COPY --from=openssl /openssl/ /
+COPY --from=elfutils /elfutils/ /
+COPY --from=libbpf /libbpf/ /
+COPY --from=obstack /obstack/ /
+COPY --from=argp /argp/ /
+COPY --from=zlib /zlib/ /
+COPY --from=pkgconfig /pkgconfig/ /
+COPY --from=sources-downloader /sources/downloads/dwarves.tar.xz /sources/
+WORKDIR /sources
+RUN tar -xf dwarves.tar.xz && mv dwarves-* dwarves
+RUN mkdir -p /pahole /sources/dwarves-build
+WORKDIR /sources/dwarves-build
+RUN cmake ../dwarves \
+      -DCMAKE_INSTALL_PREFIX=/usr \
+      -DCMAKE_INSTALL_LIBDIR=lib \
+      -DCMAKE_BUILD_TYPE=MinSizeRel \
+      -DLIBBPF_EMBEDDED=OFF \
+      -D__LIB=lib \
+      && \
+    make -j${JOBS} && \
+    make install DESTDIR=/pahole
+# Only pahole binary and its shared-library dependencies are needed at kernel build time.
+# Remove headers and static libs to keep the layer small.
+RUN rm -rf /pahole/usr/include
+
 ## kernel
 FROM rsync AS kernel-base
 ARG JOBS
@@ -2053,6 +2225,8 @@ COPY --from=m4 /m4/ /
 COPY --from=bison /bison/ /
 
 COPY --from=libelf /libelf/ /
+
+COPY --from=elfutils /elfutils/ /
 
 COPY --from=openssl /openssl/ /
 
@@ -2070,6 +2244,17 @@ COPY --from=xz /xz/ /
 
 COPY --from=grep /grep/ /
 
+# pahole and its runtime dependencies (libbpf, musl-obstack, argp-standalone, musl-fts).
+# Kernel Kconfig probes pahole --version at build time; missing libs would leave
+# CONFIG_PAHOLE_VERSION empty and silently disable DEBUG_INFO_BTF.
+# python3 is needed by kernel's tools/bpf/resolve_btfids build (bpf_helper_defs.h generation).
+COPY --from=libbpf /libbpf/ /
+COPY --from=obstack /obstack/ /
+COPY --from=argp /argp/ /
+COPY --from=fts /fts/ /
+COPY --from=python-build /python /
+COPY --from=pahole /pahole/ /
+
 COPY --from=sources-downloader /sources/downloads/linux.tar.gz /sources/
 
 RUN mkdir -p /sources/kernel-configs
@@ -2082,6 +2267,8 @@ RUN tar -xf linux.tar.gz && mv linux-* kernel
 
 # Apply kernel patches (sorted; ignore if none).
 # LP: #2137714 — virt: vmgenid: remap memory as decrypted (fixes SEV-SNP boot on AWS).
+# 0002 — resolve_btfids: copy BTF names before mutating BTF; fixes deterministic
+# segfault during vmlinux BTF generation on musl (glibc mremap hides the bug).
 COPY ./files/kernel-patches /sources/kernel-patches
 RUN cd /sources/kernel && \
     for p in $(ls /sources/kernel-patches/*.patch 2>/dev/null | sort); do \
@@ -2400,25 +2587,6 @@ RUN patch -p1 < /sources/patches/aport/main/lvm2/fix-stdio-usage.patch
 RUN ./configure --prefix=/usr --libdir=/usr/lib --enable-pkgconfig --with-optimisation=-Os
 RUN make -s -j${JOBS} -l${MAX_LOAD} && make -s -j${JOBS} -l${MAX_LOAD} install_device-mapper DESTDIR=/lvm2
 
-FROM rsync AS cmake
-ARG JOBS
-# Disable lto for cmake as it gives us nothing but issues
-ENV CFLAGS="${CFLAGS//-flto=auto/}"
-ENV LDFLAGS="${LDFLAGS//-flto=auto/}"
-COPY --from=curl /curl/ /
-COPY --from=openssl /openssl/ /
-COPY --from=sources-downloader /sources/downloads/cmake.tar.gz /sources/
-
-RUN mkdir -p /cmake
-WORKDIR /sources
-RUN tar -xf cmake.tar.gz && mv cmake-* cmake
-WORKDIR /sources/cmake
-
-RUN ./bootstrap --prefix=/usr --no-debugger  --parallel=${JOBS}
-RUN make -s -j${JOBS} -l${MAX_LOAD} && make -s -j${JOBS} -l${MAX_LOAD} install DESTDIR=/cmake
-
-# TODO: Once a new jsonc version is released (0.19) they will have meson support
-# which means we can drop cmake buiilding which is very slow and heavy
 FROM rsync AS jsonc
 ARG JOBS
 COPY --from=cmake /cmake/ /
