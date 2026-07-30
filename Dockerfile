@@ -1825,6 +1825,10 @@ RUN mkdir -p /shadow
 WORKDIR /sources
 RUN tar -xf shadow.tar.xz && mv shadow-* shadow
 WORKDIR /sources/shadow
+# Backport of upstream ba4419c5 (missing <stdint.h> for uintmax_t, breaks musl builds).
+# Drop this patch when bumping shadow past 4.20.0.
+COPY patches/0001-shadow-subid-stdint-musl.patch .
+RUN patch -p1 < 0001-shadow-subid-stdint-musl.patch
 # --disable-logind disables building with systemd logind support. This is for the base shadow build without systemd
 RUN ./configure ${COMMON_CONFIGURE_ARGS} --sysconfdir=/etc --without-libbsd --disable-nls --disable-logind
 RUN make -s -j${JOBS} -l${MAX_LOAD} && make -s -j${JOBS} -l${MAX_LOAD} exec_prefix=/usr pamddir= install DESTDIR=/shadow && make exec_prefix=/usr pamddir= -s -j${JOBS} -l${MAX_LOAD} install
@@ -3460,6 +3464,10 @@ RUN mkdir -p /shadow
 WORKDIR /sources
 RUN tar -xf shadow.tar.xz && mv shadow-* shadow
 WORKDIR /sources/shadow
+# Backport of upstream ba4419c5 (missing <stdint.h> for uintmax_t, breaks musl builds).
+# Drop this patch when bumping shadow past 4.20.0.
+COPY patches/0001-shadow-subid-stdint-musl.patch .
+RUN patch -p1 < 0001-shadow-subid-stdint-musl.patch
 RUN ./configure ${COMMON_CONFIGURE_ARGS} --sysconfdir=/etc --without-libbsd --disable-nls
 RUN make -s -j${JOBS} -l${MAX_LOAD} && make -s -j${JOBS} -l${MAX_LOAD} exec_prefix=/usr pamddir= install DESTDIR=/shadow && make exec_prefix=/usr pamddir= -s -j${JOBS} -l${MAX_LOAD} install
 
