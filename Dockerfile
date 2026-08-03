@@ -389,7 +389,7 @@ ARG PAM_VERSION=1.7.2
 RUN wget -q https://github.com/linux-pam/linux-pam/releases/download/v${PAM_VERSION}/Linux-PAM-${PAM_VERSION}.tar.xz -O pam.tar.xz
 
 FROM sources-downloader-base AS shadow-download
-ARG SHADOW_VERSION=4.19.4
+ARG SHADOW_VERSION=4.20.0
 RUN wget -q https://github.com/shadow-maint/shadow/releases/download/${SHADOW_VERSION}/shadow-${SHADOW_VERSION}.tar.xz -O shadow.tar.xz
 
 FROM sources-downloader-base AS aports-download
