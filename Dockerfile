@@ -369,7 +369,7 @@ ARG KEYUTILS_VERSION=1.6.3
 RUN wget -q https://git.kernel.org/pub/scm/linux/kernel/git/dhowells/keyutils.git/snapshot/keyutils-${KEYUTILS_VERSION}.tar.gz -O keyutils.tar.gz
 
 FROM sources-downloader-base AS nfs-utils-download
-ARG NFS_UTILS_VERSION=2.9.1
+ARG NFS_UTILS_VERSION=2.9.2
 RUN wget -q https://www.kernel.org/pub/linux/utils/nfs-utils/${NFS_UTILS_VERSION}/nfs-utils-${NFS_UTILS_VERSION}.tar.xz -O nfs-utils.tar.xz
 
 FROM sources-downloader-base AS cryptsetup-download
