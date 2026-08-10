@@ -244,7 +244,7 @@ RUN wget -q https://downloads.sourceforge.net/project/procps-ng/Production/procp
 # If we ever pin to a mainline/RC that is not on the CDN yet, this will 404
 # and we will need to add git.kernel.org back as a fallback.
 FROM sources-downloader-base AS linux-download
-ARG KERNEL_VERSION=7.1.5
+ARG KERNEL_VERSION=7.1.8
 RUN wget -q https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_VERSION%%.*}.x/linux-${KERNEL_VERSION}.tar.xz -O linux.tar.xz
 
 FROM sources-downloader-base AS flex-download
