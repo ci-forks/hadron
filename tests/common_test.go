@@ -80,6 +80,55 @@ func assertBTFAvailable(vm VM) {
 	})
 }
 
+// assertFirmwareLayout verifies the firmware search layout on an installed
+// node. See kairos-io/kairos#4290: the image blobs used to live at
+// /usr/local/lib/firmware with /lib/firmware symlinked into it, so the
+// COS_PERSISTENT mount at /usr/local hid every blob baked into the image.
+//
+// The blobs now sit in the real directory /usr/lib/firmware, on the read-only
+// rootfs where the persistent mount cannot shadow them, and the persistent
+// partition is reachable as the override directory /usr/lib/firmware/updates.
+// The kernel searches /lib/firmware/updates before /lib/firmware (fw_path[]
+// in drivers/base/firmware_loader/main.c), so an operator blob dropped on the
+// persistent partition still wins.
+func assertFirmwareLayout(vm VM) {
+	By("checking the firmware directory is a real directory", func() {
+		// A symlink here makes a firmware sysext replace the baked-in blobs
+		// instead of merging with them: overlayfs merges two directories, but
+		// an upper directory replaces a lower symlink outright.
+		out, err := vm.Sudo("test -d /usr/lib/firmware && test ! -L /usr/lib/firmware && echo ok")
+		Expect(err).ToNot(HaveOccurred(), out)
+		Expect(out).To(ContainSubstring("ok"))
+	})
+
+	By("checking the firmware directory is not backed by the persistent partition", func() {
+		fwDev, err := vm.Sudo("stat -c %d /usr/lib/firmware")
+		Expect(err).ToNot(HaveOccurred(), fwDev)
+		persistentDev, err := vm.Sudo("stat -c %d /usr/local")
+		Expect(err).ToNot(HaveOccurred(), persistentDev)
+		Expect(strings.TrimSpace(persistentDev)).ToNot(BeEmpty())
+		Expect(strings.TrimSpace(fwDev)).ToNot(Equal(strings.TrimSpace(persistentDev)),
+			"/usr/lib/firmware sits on the persistent partition, so blobs baked into the image are hidden")
+	})
+
+	By("checking the override directory resolves onto the persistent partition", func() {
+		out, err := vm.Sudo("readlink /usr/lib/firmware/updates")
+		Expect(err).ToNot(HaveOccurred(), out)
+		Expect(strings.TrimSpace(out)).To(Equal("/usr/local/lib/firmware"))
+
+		// The kernel opens the override path through /lib/firmware/updates, so
+		// walk that exact path rather than the /usr/lib one.
+		out, err = vm.Sudo("mkdir -p /usr/local/lib/firmware && " +
+			"echo kairos-4290 > /usr/local/lib/firmware/kairos-4290.bin && " +
+			"cat /lib/firmware/updates/kairos-4290.bin")
+		Expect(err).ToNot(HaveOccurred(), out)
+		Expect(out).To(ContainSubstring("kairos-4290"))
+
+		out, err = vm.Sudo("rm -f /usr/local/lib/firmware/kairos-4290.bin")
+		Expect(err).ToNot(HaveOccurred(), out)
+	})
+}
+
 // assertRootfsShared verifies the rootfs is mounted as a shared mount.
 func assertRootfsShared(vm VM) {
 	By("checking rootfs shared mount", func() {

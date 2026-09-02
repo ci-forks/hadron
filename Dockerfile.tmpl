@@ -3937,15 +3937,31 @@ RUN rm -f /etc/passwd /etc/shadow /etc/group /etc/gshadow
 COPY files/systemd/00-root.conf /etc/sysusers.d/00-root.conf
 ## Create any missing users from scratch
 RUN systemd-sysusers
-## Firmware lives at /usr/local/lib/firmware so it is sysext-compatible and can
-## be overridden by a persistent-partition mount; /lib/firmware is a symlink
-## into it so the kernel's default fw search path still resolves. Additive
-## composers (COPY --from=<fw> / /) can drop files at /usr/local/lib/firmware/*
-## without hitting the "cannot copy to non-directory" buildkit error you get
-## when the real directory sits under /lib/firmware and /usr/local is the link.
-RUN rm -rf /lib/firmware && \
-    mkdir -p /usr/local/lib/firmware && \
-    ln -s /usr/local/lib/firmware /lib/firmware
+## Firmware layout. The blobs baked into the image live in the real directory
+## /usr/lib/firmware, and /usr/lib/firmware/updates is a symlink to
+## /usr/local/lib/firmware, which is where COS_PERSISTENT gets mounted.
+##
+## The kernel searches the override directory first. From fw_path[] in
+## drivers/base/firmware_loader/main.c the order is firmware_class.path=,
+## /lib/firmware/updates/$(uname -r), /lib/firmware/updates,
+## /lib/firmware/$(uname -r), /lib/firmware, and a failed open moves to the
+## next entry. So an operator blob placed on the persistent partition wins
+## over the image one, with nothing on the kernel cmdline and nothing in the
+## kernel config: /lib resolves through the /lib -> usr/lib skeleton symlink,
+## and the loader reads through init's mount namespace, so it follows the
+## symlink and sees sysext overlays.
+##
+## Degradation is safe both ways. With the persistent partition not mounted
+## (live media, early boot, first boot) the symlink dangles, that path yields
+## -ENOENT, and the image blobs load. With it mounted and holding a blob, the
+## override wins.
+##
+## /usr/lib/firmware must stay a real directory: overlayfs merges a directory
+## in an upper layer with a directory in a lower one, but an upper directory
+## replaces a lower symlink outright. As a symlink it made a firmware sysext
+## replace the baked-in blobs instead of adding to them.
+RUN mkdir -p /usr/lib/firmware /usr/local/lib/firmware && \
+    ln -s /usr/local/lib/firmware /usr/lib/firmware/updates
 ## Symlink ld-musl-$ARCH.so to /bin/ldd to provide ldd functionality
 RUN rm /bin/ldd
 RUN if [ "${BUILD_ARCH}" == "aarch64" ]; then \
