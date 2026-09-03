@@ -116,101 +116,81 @@ sources:
 
 targets:
   python:
-    name: PYTHON_VERSION in Dockerfile udpated to {{ source "python" }}
-    kind: dockerfile
+    name: python version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: PYTHON_VERSION
+      file: sources.yaml
+      key: $.packages.python.version
     sourceid: python
 
   sqlite3:
-    name: SQLITE3_VERSION in Dockerfile
-    kind: dockerfile
+    name: sqlite3 version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: SQLITE3_VERSION
+      file: sources.yaml
+      key: $.packages.sqlite3.version
     sourceid: sqlite3
 
   tpm2_tss:
-    name: TPM2_TSS_VERSION in Dockerfile
-    kind: dockerfile
+    name: tpm2-tss version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: TPM2_TSS_VERSION
+      file: sources.yaml
+      key: $.packages.tpm2-tss.version
     sourceid: tpm2_tss
 
   libucontext:
-    name: LIBUCONTEXT_VERSION in Dockerfile
-    kind: dockerfile
+    name: libucontext version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: LIBUCONTEXT_VERSION
+      file: sources.yaml
+      key: $.packages.libucontext.version
     sourceid: libucontext
 
   pax_utils:
-    name: PAX_UTILS_VERSION in Dockerfile updated to {{ source "pax_utils" }}
-    kind: dockerfile
+    name: pax-utils version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: PAX_UTILS_VERSION
+      file: sources.yaml
+      key: $.packages.pax-utils.version
     sourceid: pax_utils
 
   ca_certificates:
-    name: CA_CERTIFICATES_VERSION in Dockerfile
-    kind: dockerfile
+    name: ca-certificates version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: CA_CERTIFICATES_VERSION
+      file: sources.yaml
+      key: $.packages.ca-certificates.version
     sourceid: ca_certificates
 
   aports:
-    name: APORTS_VERSION in Dockerfile
-    kind: dockerfile
+    name: aports version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: APORTS_VERSION
+      file: sources.yaml
+      key: $.packages.aports.version
     sourceid: aports
 
   gdb:
-    name: GDB_VERSION in Dockerfile
-    kind: dockerfile
+    name: gdb version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: GDB_VERSION
+      file: sources.yaml
+      key: $.packages.gdb.version
     sourceid: gdb
 
   bc:
-    name: BC_VERSION in Dockerfile
-    kind: dockerfile
+    name: bc version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: BC_VERSION
+      file: sources.yaml
+      key: $.packages.bc.version
     sourceid: bc
 
   patch:
-    name: PATCH_VERSION in Dockerfile
-    kind: dockerfile
+    name: patch version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: PATCH_VERSION
+      file: sources.yaml
+      key: $.packages.patch.version
     sourceid: patch

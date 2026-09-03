@@ -121,81 +121,65 @@ sources:
 
 targets:
   lvm2:
-    name: LVM2_VERSION in Dockerfile
-    kind: dockerfile
+    name: lvm2 version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: LVM2_VERSION
+      file: sources.yaml
+      key: $.packages.lvm2.version
     sourceid: lvm2
 
   multipath:
-    name: MULTIPATH_TOOLS_VERSION in Dockerfile
-    kind: dockerfile
+    name: multipath-tools version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: MULTIPATH_TOOLS_VERSION
+      file: sources.yaml
+      key: $.packages.multipath-tools.version
     sourceid: multipath
 
   e2fsprogs:
-    name: E2FSPROGS_VERSION in Dockerfile
-    kind: dockerfile
+    name: e2fsprogs version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: E2FSPROGS_VERSION
+      file: sources.yaml
+      key: $.packages.e2fsprogs.version
     sourceid: e2fsprogs
 
   dosfstools:
-    name: DOSFSTOOLS_VERSION in Dockerfile
-    kind: dockerfile
+    name: dosfstools version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: DOSFSTOOLS_VERSION
+      file: sources.yaml
+      key: $.packages.dosfstools.version
     sourceid: dosfstools
 
   parted:
-    name: PARTED_VERSION in Dockerfile
-    kind: dockerfile
+    name: parted version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: PARTED_VERSION
+      file: sources.yaml
+      key: $.packages.parted.version
     sourceid: parted
 
   urcu:
-    name: URCU_VERSION in Dockerfile
-    kind: dockerfile
+    name: urcu version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: URCU_VERSION
+      file: sources.yaml
+      key: $.packages.urcu.version
     sourceid: urcu
 
   libtirpc:
-    name: LIBTIRPC_VERSION in Dockerfile
-    kind: dockerfile
+    name: libtirpc version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: LIBTIRPC_VERSION
+      file: sources.yaml
+      key: $.packages.libtirpc.version
     sourceid: libtirpc
 
   nfs-utils:
-    name: NFS_UTILS_VERSION in Dockerfile
-    kind: dockerfile
+    name: nfs-utils version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: NFS_UTILS_VERSION
+      file: sources.yaml
+      key: $.packages.nfs-utils.version
     sourceid: nfs-utils

@@ -68,61 +68,49 @@ sources:
 
 targets:
   openssl:
-    name: OPENSSL_VERSION in Dockerfile
-    kind: dockerfile
+    name: openssl version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: OPENSSL_VERSION
+      file: sources.yaml
+      key: $.packages.openssl.version
     sourceid: openssl
 
   openssh:
-    name: OPENSSH_VERSION in Dockerfile
-    kind: dockerfile
+    name: openssh version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: OPENSSH_VERSION
+      file: sources.yaml
+      key: $.packages.openssh.version
     sourceid: openssh
 
   sudo:
-    name: SUDO_VERSION in Dockerfile
-    kind: dockerfile
+    name: sudo version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: SUDO_VERSION
+      file: sources.yaml
+      key: $.packages.sudo.version
     sourceid: sudo
 
   pam:
-    name: PAM_VERSION in Dockerfile
-    kind: dockerfile
+    name: pam version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: PAM_VERSION
+      file: sources.yaml
+      key: $.packages.pam.version
     sourceid: pam
 
   shadow:
-    name: SHADOW_VERSION in Dockerfile
-    kind: dockerfile
+    name: shadow version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: SHADOW_VERSION
+      file: sources.yaml
+      key: $.packages.shadow.version
     sourceid: shadow
 
   cryptsetup:
-    name: CRYPTSETUP_VERSION in Dockerfile
-    kind: dockerfile
+    name: cryptsetup version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: CRYPTSETUP_VERSION
+      file: sources.yaml
+      key: $.packages.cryptsetup.version
     sourceid: cryptsetup

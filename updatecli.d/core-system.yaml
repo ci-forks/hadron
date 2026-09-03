@@ -187,120 +187,100 @@ sources:
 
 targets:
   musl:
-    name: MUSL_VERSION in Dockerfile
-    kind: dockerfile
+    name: musl version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: MUSL_VERSION
+      file: sources.yaml
+      key: $.packages.musl.version
     sourceid: musl
 
   busybox:
-    name: BUSYBOX_VERSION in Dockerfile
-    kind: dockerfile
+    name: busybox version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: BUSYBOX_VERSION
+      file: sources.yaml
+      key: $.packages.busybox.version
     sourceid: busybox
 
   systemd:
-    name: SYSTEMD_VERSION in Dockerfile
-    kind: dockerfile
+    name: systemd version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: SYSTEMD_VERSION
+      file: sources.yaml
+      key: $.packages.systemd.version
     sourceid: systemd
 
   util_linux:
-    name: UTIL_LINUX_VERSION in Dockerfile
-    kind: dockerfile
+    name: util-linux version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: UTIL_LINUX_VERSION
+      file: sources.yaml
+      key: $.packages.util-linux.version
     sourceid: util_linux
 
   coreutils:
-    name: COREUTILS_VERSION in Dockerfile
-    kind: dockerfile
+    name: coreutils version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: COREUTILS_VERSION
+      file: sources.yaml
+      key: $.packages.coreutils.version
     sourceid: coreutils
 
   findutils:
-    name: FINDUTILS_VERSION in Dockerfile
-    kind: dockerfile
+    name: findutils version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: FINDUTILS_VERSION
+      file: sources.yaml
+      key: $.packages.findutils.version
     sourceid: findutils
 
   grep:
-    name: GREP_VERSION in Dockerfile
-    kind: dockerfile
+    name: grep version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: GREP_VERSION
+      file: sources.yaml
+      key: $.packages.grep.version
     sourceid: grep
 
   gperf:
-    name: GPERF_VERSION in Dockerfile
-    kind: dockerfile
+    name: gperf version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: GPERF_VERSION
+      file: sources.yaml
+      key: $.packages.gperf.version
     sourceid: gperf
 
   diffutils:
-    name: DIFFUTILS_VERSION in Dockerfile
-    kind: dockerfile
+    name: diffutils version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: DIFFUTILS_VERSION
+      file: sources.yaml
+      key: $.packages.diffutils.version
     sourceid: diffutils
 
   readline:
-    name: READLINE_VERSION in Dockerfile
-    kind: dockerfile
+    name: readline version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: READLINE_VERSION
+      file: sources.yaml
+      key: $.packages.readline.version
     sourceid: readline
 
   bash:
-    name: BASH_VERSION in Dockerfile
+    name: BASH_VERSION in Dockerfile.tmpl
     kind: dockerfile
     spec:
-      file: Dockerfile
+      file: Dockerfile.tmpl
       instruction:
         keyword: ARG
         matcher: BASH_VERSION
     sourceid: bash
 
   bash_patch_level:
-    name: PATCH_LEVEL in Dockerfile
+    name: PATCH_LEVEL in Dockerfile.tmpl
     kind: dockerfile
     spec:
-      file: Dockerfile
+      file: Dockerfile.tmpl
       instruction:
         keyword: ARG
         matcher: PATCH_LEVEL

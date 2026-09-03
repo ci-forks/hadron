@@ -72,61 +72,49 @@ sources:
 
 targets:
   kernel:
-    name: KERNEL_VERSION in Dockerfile
-    kind: dockerfile
+    name: linux version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: KERNEL_VERSION
+      file: sources.yaml
+      key: $.packages.linux.version
     sourceid: kernel
 
   kmod:
-    name: KMOD_VERSION in Dockerfile
-    kind: dockerfile
+    name: kmod version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: KMOD_VERSION
+      file: sources.yaml
+      key: $.packages.kmod.version
     sourceid: kmod
 
   dracut:
-    name: DRACUT_VERSION in Dockerfile
-    kind: dockerfile
+    name: dracut version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: DRACUT_VERSION
+      file: sources.yaml
+      key: $.packages.dracut.version
     sourceid: dracut
 
   grub:
-    name: GRUB_VERSION in Dockerfile
-    kind: dockerfile
+    name: grub version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: GRUB_VERSION
+      file: sources.yaml
+      key: $.packages.grub.version
     sourceid: grub
 
   kbd:
-    name: KBD_VERSION in Dockerfile
-    kind: dockerfile
+    name: kbd version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: KBD_VERSION
+      file: sources.yaml
+      key: $.packages.kbd.version
     sourceid: kbd
 
   dwarves:
-    name: DWARVES_VERSION in Dockerfile
-    kind: dockerfile
+    name: dwarves version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: DWARVES_VERSION
+      file: sources.yaml
+      key: $.packages.dwarves.version
     sourceid: dwarves

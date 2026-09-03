@@ -46,41 +46,33 @@ sources:
 
 targets:
   qemu:
-    name: QEMU_AGENT_VERSION in Dockerfile
-    kind: dockerfile
+    name: qemu version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: QEMU_AGENT_VERSION
+      file: sources.yaml
+      key: $.packages.qemu.version
     sourceid: qemu
 
   glib:
-    name: GLIB_VERSION in Dockerfile
-    kind: dockerfile
+    name: glib version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: GLIB_VERSION
+      file: sources.yaml
+      key: $.packages.glib.version
     sourceid: glib
 
   open_vm_tools:
-    name: OPENVM_TOOLS_VERSION in Dockerfile
-    kind: dockerfile
+    name: open-vm-tools version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: OPENVM_TOOLS_VERSION
+      file: sources.yaml
+      key: $.packages.open-vm-tools.version
     sourceid: open_vm_tools
 
   mspack:
-    name: MSPACK_VERSION in Dockerfile
-    kind: dockerfile
+    name: mspack version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: MSPACK_VERSION
+      file: sources.yaml
+      key: $.packages.mspack.version
     sourceid: mspack

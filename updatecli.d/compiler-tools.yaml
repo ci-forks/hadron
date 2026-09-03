@@ -71,51 +71,41 @@ sources:
 
 targets:
   gcc:
-    name: GCC_VERSION in Dockerfile
-    kind: dockerfile
+    name: gcc version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: GCC_VERSION
+      file: sources.yaml
+      key: $.packages.gcc.version
     sourceid: gcc
 
   gmp:
-    name: GMP_VERSION in Dockerfile
-    kind: dockerfile
+    name: gmp version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: GMP_VERSION
+      file: sources.yaml
+      key: $.packages.gmp.version
     sourceid: gmp
 
   mpc:
-    name: MPC_VERSION in Dockerfile
-    kind: dockerfile
+    name: mpc version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: MPC_VERSION
+      file: sources.yaml
+      key: $.packages.mpc.version
     sourceid: mpc
 
   mpfr:
-    name: MPFR_VERSION in Dockerfile
-    kind: dockerfile
+    name: mpfr version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: MPFR_VERSION
+      file: sources.yaml
+      key: $.packages.mpfr.version
     sourceid: mpfr
 
   perl:
-    name: PERL_VERSION in Dockerfile
-    kind: dockerfile
+    name: perl version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: PERL_VERSION
+      file: sources.yaml
+      key: $.packages.perl.version
     sourceid: perl

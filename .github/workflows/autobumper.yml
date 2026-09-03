@@ -32,9 +32,12 @@ jobs:
               - security-tools
               - storage-tools
               - system-libraries
+              - vm-tools
     steps:
       - name: Install Updatecli in the runner
         uses: updatecli/updatecli-action@v3.6.0
+      - name: Install PyYAML for the checksum refresh
+        run: python3 -m pip install --quiet PyYAML
       - name: commit and push changes
         env:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
@@ -78,12 +81,20 @@ jobs:
           
           updatecli apply --config updatecli.d/${{ matrix.config }}.yaml
 
+          # `version` and `sha256` in sources.yaml describe the same tarball,
+          # and populate-sources verifies one against the other. updatecli
+          # only knows how to write the version, so refresh the checksum of
+          # whatever it just bumped or every build on this branch fails.
+          ./hack/refresh-source-checksums.sh --changed
+
           # For kernel-and-boot, regenerate kernel configs to match the new kernel version
           if [ "${{ matrix.config }}" = "kernel-and-boot" ]; then
             make update-kernel-configs
           fi
-          
-          git add Dockerfile
+
+          # Dockerfile is generated and gitignored; the pins live in
+          # sources.yaml, and the two bash ARGs in Dockerfile.tmpl.
+          git add sources.yaml Dockerfile.tmpl
 
           # For kernel-and-boot, also stage the regenerated kernel config files
           if [ "${{ matrix.config }}" = "kernel-and-boot" ]; then

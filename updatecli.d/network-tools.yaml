@@ -88,61 +88,49 @@ sources:
 
 targets:
   iptables:
-    name: IPTABLES_VERSION in Dockerfile
-    kind: dockerfile
+    name: iptables version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: IPTABLES_VERSION
+      file: sources.yaml
+      key: $.packages.iptables.version
     sourceid: iptables
 
   open_iscsi:
-    name: OPEN_SCSI_VERSION in Dockerfile
-    kind: dockerfile
+    name: openscsi version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: OPEN_SCSI_VERSION
+      file: sources.yaml
+      key: $.packages.openscsi.version
     sourceid: open_iscsi
 
   strace:
-    name: STRACE_VERSION in Dockerfile
-    kind: dockerfile
+    name: strace version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: STRACE_VERSION
+      file: sources.yaml
+      key: $.packages.strace.version
     sourceid: strace
 
   libnl:
-    name: LIBNL_VERSION in Dockerfile
-    kind: dockerfile
+    name: libnl version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: LIBNL_VERSION
+      file: sources.yaml
+      key: $.packages.libnl.version
     sourceid: libnl
 
   libevent:
-    name: LIBEVENT_VERSION in Dockerfile
-    kind: dockerfile
+    name: libevent version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: LIBEVENT_VERSION
+      file: sources.yaml
+      key: $.packages.libevent.version
     sourceid: libevent
 
   keyutils:
-    name: KEYUTILS_VERSION in Dockerfile
-    kind: dockerfile
+    name: keyutils version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: KEYUTILS_VERSION
+      file: sources.yaml
+      key: $.packages.keyutils.version
     sourceid: keyutils

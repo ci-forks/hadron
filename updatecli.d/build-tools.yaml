@@ -169,111 +169,89 @@ sources:
 
 targets:
   flex:
-    name: FLEX_VERSION in Dockerfile
-    kind: dockerfile
+    name: flex version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: FLEX_VERSION
+      file: sources.yaml
+      key: $.packages.flex.version
     sourceid: flex
 
   bison:
-    name: BISON_VERSION in Dockerfile
-    kind: dockerfile
+    name: bison version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: BISON_VERSION
+      file: sources.yaml
+      key: $.packages.bison.version
     sourceid: bison
 
   autoconf:
-    name: AUTOCONF_VERSION in Dockerfile
-    kind: dockerfile
+    name: autoconf version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: AUTOCONF_VERSION
+      file: sources.yaml
+      key: $.packages.autoconf.version
     sourceid: autoconf
 
   automake:
-    name: AUTOMAKE_VERSION in Dockerfile
-    kind: dockerfile
+    name: automake version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: AUTOMAKE_VERSION
+      file: sources.yaml
+      key: $.packages.automake.version
     sourceid: automake
 
   libtool:
-    name: LIBTOOL_VERSION in Dockerfile
-    kind: dockerfile
+    name: libtool version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: LIBTOOL_VERSION
+      file: sources.yaml
+      key: $.packages.libtool.version
     sourceid: libtool
 
   cmake:
-    name: CMAKE_VERSION in Dockerfile
-    kind: dockerfile
+    name: cmake version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: CMAKE_VERSION
+      file: sources.yaml
+      key: $.packages.cmake.version
     sourceid: cmake
 
   make:
-    name: MAKE_VERSION in Dockerfile
-    kind: dockerfile
+    name: make version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: MAKE_VERSION
+      file: sources.yaml
+      key: $.packages.make.version
     sourceid: make
 
   m4:
-    name: M4_VERSION in Dockerfile
-    kind: dockerfile
+    name: m4 version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: M4_VERSION
+      file: sources.yaml
+      key: $.packages.m4.version
     sourceid: m4
 
   gawk:
-    name: GAWK_VERSION in Dockerfile
-    kind: dockerfile
+    name: gawk version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: GAWK_VERSION
+      file: sources.yaml
+      key: $.packages.gawk.version
     sourceid: gawk
 
   pkgconfig:
-    name: PKGCONFIG_VERSION in Dockerfile
-    kind: dockerfile
+    name: pkgconf version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: PKGCONFIG_VERSION
+      file: sources.yaml
+      key: $.packages.pkgconf.version
     sourceid: pkgconfig
 
   binutils:
-    name: BINUTILS_VERSION in Dockerfile
-    kind: dockerfile
+    name: binutils version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: BINUTILS_VERSION
+      file: sources.yaml
+      key: $.packages.binutils.version
     sourceid: binutils

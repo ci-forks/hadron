@@ -223,181 +223,145 @@ sources:
 
 targets:
   acl:
-    name: ACL_VERSION in Dockerfile
-    kind: dockerfile
+    name: acl version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: ACL_VERSION
+      file: sources.yaml
+      key: $.packages.acl.version
     sourceid: acl
 
   attr:
-    name: ATTR_VERSION in Dockerfile
-    kind: dockerfile
+    name: attr version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: ATTR_VERSION
+      file: sources.yaml
+      key: $.packages.attr.version
     sourceid: attr
 
   libcap:
-    name: LIBCAP_VERSION in Dockerfile
-    kind: dockerfile
+    name: libcap version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: LIBCAP_VERSION
+      file: sources.yaml
+      key: $.packages.libcap.version
     sourceid: libcap
 
   libmnl:
-    name: LIBMNL_VERSION in Dockerfile
-    kind: dockerfile
+    name: libmnl version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: LIBMNL_VERSION
+      file: sources.yaml
+      key: $.packages.libmnl.version
     sourceid: libmnl
 
   libnftnl:
-    name: LIBNFTNL_VERSION in Dockerfile
-    kind: dockerfile
+    name: libnftnl version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: LIBNFTNL_VERSION
+      file: sources.yaml
+      key: $.packages.libnftnl.version
     sourceid: libnftnl
 
   seccomp:
-    name: SECCOMP_VERSION in Dockerfile
-    kind: dockerfile
+    name: libseccomp version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: SECCOMP_VERSION
+      file: sources.yaml
+      key: $.packages.libseccomp.version
     sourceid: seccomp
 
   libffi:
-    name: LIBFFI_VERSION in Dockerfile
-    kind: dockerfile
+    name: libffi version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: LIBFFI_VERSION
+      file: sources.yaml
+      key: $.packages.libffi.version
     sourceid: libffi
 
   libaio:
-    name: LIBAIO_VERSION in Dockerfile
-    kind: dockerfile
+    name: libaio version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: LIBAIO_VERSION
+      file: sources.yaml
+      key: $.packages.libaio.version
     sourceid: libaio
 
   dbus:
-    name: DBUS_VERSION in Dockerfile
-    kind: dockerfile
+    name: dbus version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: DBUS_VERSION
+      file: sources.yaml
+      key: $.packages.dbus.version
     sourceid: dbus
 
   expat:
-    name: EXPAT_VERSION in Dockerfile
-    kind: dockerfile
+    name: expat version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: EXPAT_VERSION
+      file: sources.yaml
+      key: $.packages.expat.version
     sourceid: expat
 
   popt:
-    name: POPT_VERSION in Dockerfile
-    kind: dockerfile
+    name: popt version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: POPT_VERSION
+      file: sources.yaml
+      key: $.packages.popt.version
     sourceid: popt
 
   libxml2:
-    name: LIBXML2_VERSION in Dockerfile
-    kind: dockerfile
+    name: libxml2 version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: LIBXML2_VERSION
+      file: sources.yaml
+      key: $.packages.libxml2.version
     sourceid: libxml2
 
   jsonc:
-    name: JSONC_VERSION in Dockerfile
-    kind: dockerfile
+    name: json-c version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: JSONC_VERSION
+      file: sources.yaml
+      key: $.packages.json-c.version
     sourceid: jsonc
 
   fts:
-    name: FTS_VERSION in Dockerfile
-    kind: dockerfile
+    name: musl-fts version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: FTS_VERSION
+      file: sources.yaml
+      key: $.packages.musl-fts.version
     sourceid: fts
 
   libelf:
-    name: LIBELF_VERSION in Dockerfile
-    kind: dockerfile
+    name: libelf version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: LIBELF_VERSION
+      file: sources.yaml
+      key: $.packages.libelf.version
     sourceid: libelf
 
   libiconv:
-    name: ICONV_VERSION in Dockerfile
-    kind: dockerfile
+    name: libiconv version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: ICONV_VERSION
+      file: sources.yaml
+      key: $.packages.libiconv.version
     sourceid: libiconv
 
   pcre2:
-    name: PCRE2_VERSION in Dockerfile
-    kind: dockerfile
+    name: pcre2 version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: PCRE2_VERSION
+      file: sources.yaml
+      key: $.packages.pcre2.version
     sourceid: pcre2
 
   libkcapi:
-    name: LIBKCAPI_VERSION in Dockerfile
-    kind: dockerfile
+    name: libkcapi version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: LIBKCAPI_VERSION
+      file: sources.yaml
+      key: $.packages.libkcapi.version
     sourceid: libkcapi

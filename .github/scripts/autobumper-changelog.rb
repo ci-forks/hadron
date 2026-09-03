@@ -4,11 +4,17 @@
 # Build the title, commit message and PR body for an Updatecli bump PR.
 #
 # This script is invoked by .github/workflows/autobumper.yml after
-# `updatecli apply` has rewritten ARG instructions in the Dockerfile. It reads
-# the staged Dockerfile diff together with the Updatecli manifest referenced by
-# the UPDATECLI_MANIFEST environment variable and enriches the PR body with
+# `updatecli apply` has rewritten the version pins. Those pins live in
+# sources.yaml (`packages.<pkg>.version`), except for the two bash ARGs that
+# have no source-cache entry and stay in Dockerfile.tmpl. It reads both staged
+# changes together with the Updatecli manifest referenced by the
+# UPDATECLI_MANIFEST environment variable and enriches the PR body with
 # changelog context (release notes, changelog links and tag-to-tag compare
 # links) for every bumped dependency.
+#
+# Bumps are keyed throughout by the Dockerfile ARG name. sources.yaml records
+# that name per package as `version_arg`, so a pin that moved to YAML still
+# lands on the same manifest target and the same changelog logic.
 #
 # Changelog enrichment is derived automatically for sources hosted on GitHub
 # and GitLab (whether declared as `githubrelease`, `gittag` or `gitlab` kinds).
@@ -26,7 +32,7 @@
 #         compare: "https://git.savannah.gnu.org/cgit/grep.git/diff/?id={new_tag}&id2={old_tag}"
 #
 # Supported placeholders in `changelog.url` and `changelog.compare` are
-# {old}, {new} (the Dockerfile versions) and {old_tag}, {new_tag} (the upstream
+# {old}, {new} (the pinned versions) and {old_tag}, {new_tag} (the upstream
 # git tags reconstructed by reversing the source transformers).
 #
 # Outputs are written to /tmp/pr_title.txt, /tmp/commit_msg.txt and
@@ -38,9 +44,10 @@ require "uri"
 require "yaml"
 require "cgi"
 
-# Parse the staged Dockerfile diff into a list of ARG version bumps. Removed
-# (`-ARG NAME=...`) and added (`+ARG NAME=...`) lines are paired by their ARG
-# name, so the result is correct regardless of how the diff groups the lines.
+# Parse a staged Dockerfile-style diff into a list of ARG version bumps.
+# Removed (`-ARG NAME=...`) and added (`+ARG NAME=...`) lines are paired by
+# their ARG name, so the result is correct regardless of how the diff groups
+# the lines. Only Dockerfile.tmpl still carries pins in this form.
 def parse_bumps(diff_text)
   removed = {}
   added = {}
@@ -63,6 +70,44 @@ def parse_bumps(diff_text)
     old_version = removed[matcher]
     new_version = added[matcher]
     next if old_version.nil? || new_version.nil? || old_version == new_version
+
+    {
+      "matcher" => matcher,
+      "old_version" => old_version,
+      "new_version" => new_version
+    }
+  end
+end
+
+# Read `packages` out of a sources.yaml blob. Returns {} for an empty or
+# unreadable blob so a missing file degrades to "no bumps" rather than raising.
+def sources_packages(blob)
+  return {} if blob.to_s.strip.empty?
+
+  data = YAML.safe_load(blob, aliases: false)
+  data.is_a?(Hash) ? (data["packages"] || {}) : {}
+rescue Psych::SyntaxError
+  {}
+end
+
+# Diff the committed sources.yaml against the staged one and report the version
+# pins that moved, keyed by the package's Dockerfile ARG name (`version_arg`).
+# Comparing parsed YAML rather than diff hunks keeps a package's identity
+# attached to its version, which `git diff -U0` output alone does not carry.
+def parse_sources_bumps(before, after)
+  after.filter_map do |package, spec|
+    next unless spec.is_a?(Hash)
+
+    matcher = spec["version_arg"]
+    next if matcher.to_s.empty?
+
+    old_version = before.dig(package, "version")
+    new_version = spec["version"]
+    next if old_version.nil? || new_version.nil?
+
+    old_version = old_version.to_s
+    new_version = new_version.to_s
+    next if old_version == new_version
 
     {
       "matcher" => matcher,
@@ -331,9 +376,24 @@ manifest = YAML.safe_load(File.read(ENV.fetch("UPDATECLI_MANIFEST")), aliases: f
 targets = manifest.fetch("targets", {})
 sources = manifest.fetch("sources", {})
 
+# Pins live in sources.yaml; the ARG name for each is its `version_arg`.
+staged_packages = sources_packages(`git show :sources.yaml 2>/dev/null`)
+head_packages = sources_packages(`git show HEAD:sources.yaml 2>/dev/null`)
+
+# `$.packages.<pkg>.version` -> <pkg>, so a yaml target resolves to the same
+# ARG name a dockerfile target states outright.
+key_to_package = lambda do |key|
+  match = key.to_s.match(/\A\$\.packages\.([^.]+)\.version\z/)
+  match && match[1]
+end
+
 target_lookup = {}
 targets.each do |target_name, target|
   matcher = target.dig("spec", "instruction", "matcher")
+  if matcher.to_s.empty?
+    package = key_to_package.call(target.dig("spec", "key"))
+    matcher = staged_packages.dig(package, "version_arg") if package
+  end
   next if matcher.to_s.empty?
 
   target_lookup[matcher] = {
@@ -342,7 +402,14 @@ targets.each do |target_name, target|
   }
 end
 
-bumps = parse_bumps(`git diff --cached -U0 -- Dockerfile`).map do |bump|
+all_bumps = parse_sources_bumps(head_packages, staged_packages) +
+            parse_bumps(`git diff --cached -U0 -- Dockerfile.tmpl`)
+
+# The manifest being processed owns only some of the pins; a bump from another
+# matrix cell's manifest must not be described by this PR.
+all_bumps.select! { |bump| target_lookup.key?(bump["matcher"]) }
+
+bumps = all_bumps.map do |bump|
   target = target_lookup[bump["matcher"]] || {}
   sourceid = target["sourceid"]
   source = sources[sourceid] || {}

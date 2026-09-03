@@ -91,20 +91,56 @@ the github api. While this consumes api quota, its much more faster than using t
 
 ### Targets
 
-All targets update `ARG` instructions in the Dockerfile:
+Version pins live in `sources.yaml`, so almost every target writes a
+`packages.<pkg>.version` key there:
 
 ```yaml
 targets:
   curl:
-    name: CURL_VERSION in Dockerfile
-    kind: dockerfile
+    name: curl version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: CURL_VERSION
+      file: sources.yaml
+      key: $.packages.curl.version
     sourceid: curl
 ```
+
+`Dockerfile` itself is generated from `Dockerfile.tmpl` by `hack/render.sh` and
+is gitignored, so nothing may target it: `updatecli apply` would fail with
+`open Dockerfile: no such file or directory`, and even a successful write could
+not be committed.
+
+The only pins not backed by `sources.yaml` are bash's, which has no
+source-cache entry because it is fetched with its patch series rather than as a
+single tarball. Those two stay in the template:
+
+```yaml
+targets:
+  bash:
+    name: BASH_VERSION in Dockerfile.tmpl
+    kind: dockerfile
+    spec:
+      file: Dockerfile.tmpl
+      instruction:
+        keyword: ARG
+        matcher: BASH_VERSION
+    sourceid: bash
+```
+
+### Checksums
+
+`sources.yaml` pins a `sha256` next to every `version`, and both
+`populate-sources` and an upstream-mode build verify one against the other.
+Updatecli only writes the version, so the autobumper runs
+
+```bash
+./hack/refresh-source-checksums.sh --changed
+```
+
+straight after `updatecli apply`. It re-downloads the tarball for every package
+whose version moved and rewrites that package's `sha256`. Packages have to be
+named (or selected by `--changed`) on purpose: refreshing the whole file would
+let an upstream retag of a package nobody bumped rewrite its pin silently.
 
 ## Special Cases
 
@@ -127,7 +163,7 @@ versionfilter:
 ```
 
 ### Bash Patch Level
-Bash uses two Updatecli values in `/home/runner/work/hadron/hadron/Dockerfile`: `BASH_VERSION` and `PATCH_LEVEL`.
+Bash uses two Updatecli values in `Dockerfile.tmpl`: `BASH_VERSION` and `PATCH_LEVEL`.
 `BASH_VERSION` comes from upstream tags, while `PATCH_LEVEL` is derived by parsing the upstream Bash patch directory for the selected minor version and taking the highest available patch number.
 
 ## Testing
@@ -154,8 +190,9 @@ In CI/CD pipelines, ensure the `GITHUB_TOKEN` environment variable is set:
 
 The autobumper workflow enriches dependency bump PRs with changelog context. The
 logic lives in [`.github/scripts/autobumper-changelog.rb`](../.github/scripts/autobumper-changelog.rb),
-which reads the staged Dockerfile diff together with the manifest referenced by
-`UPDATECLI_MANIFEST` and writes the PR title, commit message and body.
+which reads the staged `sources.yaml` and `Dockerfile.tmpl` changes together
+with the manifest referenced by `UPDATECLI_MANIFEST` and writes the PR title,
+commit message and body.
 
 For every bumped dependency the PR body shows the version change plus, depending
 on where the source is hosted:
@@ -208,7 +245,7 @@ Supported fields:
   expose those coordinates.
 
 The `url` and `compare` templates support the placeholders `{old}` / `{new}`
-(the Dockerfile versions) and `{old_tag}` / `{new_tag}` (the upstream git tags,
+(the pinned versions) and `{old_tag}` / `{new_tag}` (the upstream git tags,
 reconstructed by reversing the source `transformers`).
 
 This keeps PRs compact while still surfacing a changelog link — or a real

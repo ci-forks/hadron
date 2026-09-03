@@ -85,81 +85,65 @@ sources:
 
 targets:
   curl:
-    name: CURL_VERSION in Dockerfile
-    kind: dockerfile
+    name: curl version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: CURL_VERSION
+      file: sources.yaml
+      key: $.packages.curl.version
     sourceid: curl
 
   rsync:
-    name: RSYNC_VERSION in Dockerfile
-    kind: dockerfile
+    name: rsync version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: RSYNC_VERSION
+      file: sources.yaml
+      key: $.packages.rsync.version
     sourceid: rsync
 
   xxhash:
-    name: XXHASH_VERSION in Dockerfile
-    kind: dockerfile
+    name: xxhash version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: XXHASH_VERSION
+      file: sources.yaml
+      key: $.packages.xxhash.version
     sourceid: xxhash
 
   zstd:
-    name: ZSTD_VERSION in Dockerfile
-    kind: dockerfile
+    name: zstd version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: ZSTD_VERSION
+      file: sources.yaml
+      key: $.packages.zstd.version
     sourceid: zstd
 
   lz4:
-    name: LZ4_VERSION in Dockerfile
-    kind: dockerfile
+    name: lz4 version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: LZ4_VERSION
+      file: sources.yaml
+      key: $.packages.lz4.version
     sourceid: lz4
 
   zlib:
-    name: ZLIB_VERSION in Dockerfile
-    kind: dockerfile
+    name: zlib version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: ZLIB_VERSION
+      file: sources.yaml
+      key: $.packages.zlib.version
     sourceid: zlib
 
   xzutils:
-    name: XZUTILS_VERSION in Dockerfile
-    kind: dockerfile
+    name: xz version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: XZUTILS_VERSION
+      file: sources.yaml
+      key: $.packages.xz.version
     sourceid: xzutils
 
   gzip:
-    name: GZIP_VERSION in Dockerfile
-    kind: dockerfile
+    name: gzip version in sources.yaml
+    kind: yaml
     spec:
-      file: Dockerfile
-      instruction:
-        keyword: ARG
-        matcher: GZIP_VERSION
+      file: sources.yaml
+      key: $.packages.gzip.version
     sourceid: gzip
