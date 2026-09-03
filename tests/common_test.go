@@ -91,6 +91,20 @@ func assertBTFAvailable(vm VM) {
 // The kernel searches /lib/firmware/updates before /lib/firmware (fw_path[]
 // in drivers/base/firmware_loader/main.c), so an operator blob dropped on the
 // persistent partition still wins.
+//
+// What this helper covers, and what it does not: it asserts the on-disk layout
+// that makes the kernel's documented search order reachable, namely that
+// /usr/lib/firmware is a real directory, that it is not backed by the
+// persistent partition, and that a file written under /usr/local/lib/firmware
+// is readable through /lib/firmware/updates. It never asks the kernel to load
+// firmware, so it does not observe the loader choosing between two same-named
+// blobs. That is not reachable from this suite: /usr is read-only at runtime,
+// so a colliding blob cannot be planted in /usr/lib/firmware, and
+// CONFIG_TEST_FIRMWARE is unset in every files/kernel/*.config, so the
+// trigger_request interface that would let userspace see which file won is not
+// built. Observing it in CI means building CONFIG_TEST_FIRMWARE=m and driving
+// /sys/devices/virtual/misc/test_firmware/trigger_request, which is a kernel
+// config change outside this PR.
 func assertFirmwareLayout(vm VM) {
 	By("checking the firmware directory is a real directory", func() {
 		// A symlink here makes a firmware sysext replace the baked-in blobs

@@ -3951,15 +3951,53 @@ RUN systemd-sysusers
 ## and the loader reads through init's mount namespace, so it follows the
 ## symlink and sees sysext overlays.
 ##
-## Degradation is safe both ways. With the persistent partition not mounted
-## (live media, early boot, first boot) the symlink dangles, that path yields
-## -ENOENT, and the image blobs load. With it mounted and holding a blob, the
-## override wins.
+## That precedence is per compression suffix, not absolute. The suffix retry
+## wraps the fw_path[] walk instead of nesting inside it: _request_firmware
+## calls fw_get_filesystem_firmware once with no suffix, then, only on
+## -ENOENT, once with ".zst" and once with ".xz" (main.c:873-887 in the
+## kernel this image builds, v7.1.8, identical to mainline), while the
+## fw_path[] loop lives inside that function (main.c:513). Every path is
+## tried uncompressed before any path is tried compressed. So an override
+## only wins if its suffix comes no later than the image blob's in the
+## sequence uncompressed, .zst, .xz. hadron-firmware runs upstream's
+## copy-firmware.sh with --zstd, so the image blobs are .zst: an uncompressed
+## or .zst override wins, and an .xz override silently loses to the image's
+## .zst. Note the order is .zst before .xz, and CONFIG_FW_LOADER_COMPRESS_XZ
+## and _ZSTD are both on in every files/kernel/*.config.
+##
+## Degradation is safe both ways, and for two different reasons. With the
+## persistent partition mounted but holding no firmware (a fresh install, and
+## every boot after a state reset) the symlink dangles, the open yields
+## -ENOENT, and the image blobs load. Before the partition is mounted (live
+## media, initramfs) the symlink resolves to the empty
+## /usr/local/lib/firmware that the RUN below creates, every lookup under it
+## yields -ENOENT, and the image blobs load the same way. That mkdir is what
+## makes the second case resolve rather than dangle, so it is not dead code.
+## With the partition mounted and holding a blob, the override wins, subject
+## to the suffix rule above.
 ##
 ## /usr/lib/firmware must stay a real directory: overlayfs merges a directory
 ## in an upper layer with a directory in a lower one, but an upper directory
 ## replaces a lower symlink outright. As a symlink it made a firmware sysext
 ## replace the baked-in blobs instead of adding to them.
+##
+## Two constraints follow for anything layered on this base, because
+## /usr/lib/firmware/updates is now a symlink onto the persistent mount:
+##
+##   - A layer image must ship its blobs at usr/lib/firmware/<name> and must
+##     not create usr/lib/firmware/updates/. buildkit resolves a COPY
+##     destination through a symlink that already exists in the base, so a
+##     COPY into that path writes to /usr/local/lib/firmware and the
+##     COS_PERSISTENT mount hides it at runtime. That is the #4290 bug, for
+##     one subtree.
+##   - A sysext must not ship updates/ as a real directory either, by the
+##     same overlayfs rule as above: an upper directory replaces the lower
+##     symlink and the persistent override stops working with no error.
+##
+## hadron-firmware satisfies both today. Its targets are named after the top
+## level folders of upstream linux-firmware, none of which is "updates", and
+## kairos-io/hadron-firmware#31 moves its DESTDIR from
+## /usr/local/lib/firmware to /usr/lib/firmware.
 RUN mkdir -p /usr/lib/firmware /usr/local/lib/firmware && \
     ln -s /usr/local/lib/firmware /usr/lib/firmware/updates
 ## Symlink ld-musl-$ARCH.so to /bin/ldd to provide ldd functionality
