@@ -3962,8 +3962,17 @@ RUN systemd-sysusers
 ## sequence uncompressed, .zst, .xz. hadron-firmware runs upstream's
 ## copy-firmware.sh with --zstd, so the image blobs are .zst: an uncompressed
 ## or .zst override wins, and an .xz override silently loses to the image's
-## .zst. Note the order is .zst before .xz, and CONFIG_FW_LOADER_COMPRESS_XZ
-## and _ZSTD are both on in every files/kernel/*.config.
+## .zst. Note the order is .zst before .xz.
+##
+## All of that presumes the loader was built with compression support, which
+## is not universal here. CONFIG_FW_LOADER_COMPRESS_XZ and _ZSTD are set in
+## default.config, default-arm64.config, cloud.config and cloud-arm64.config,
+## but default-riscv64.config and cloud-riscv64.config both carry
+## "# CONFIG_FW_LOADER_COMPRESS is not set" under CONFIG_FW_LOADER=y. On
+## riscv64 only the uncompressed pass runs, so a .zst image blob does not
+## load there at all and only an uncompressed override is ever read. Making
+## riscv64 consume hadron-firmware's .zst output is a change to those two
+## kernel configs, not to this layout.
 ##
 ## Degradation is safe both ways, and for two different reasons. With the
 ## persistent partition mounted but holding no firmware (a fresh install, and

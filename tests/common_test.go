@@ -90,7 +90,11 @@ func assertBTFAvailable(vm VM) {
 // partition is reachable as the override directory /usr/lib/firmware/updates.
 // The kernel searches /lib/firmware/updates before /lib/firmware (fw_path[]
 // in drivers/base/firmware_loader/main.c), so an operator blob dropped on the
-// persistent partition still wins.
+// persistent partition wins, as long as its compression suffix comes no later
+// than the image blob's in the loader's uncompressed, .zst, .xz sequence. The
+// image blobs are .zst, so an .xz override loses to them. See the comment
+// above the firmware RUN in Dockerfile.tmpl for the derivation, and for why
+// riscv64 reads uncompressed overrides only.
 //
 // What this helper covers, and what it does not: it asserts the on-disk layout
 // that makes the kernel's documented search order reachable, namely that
