@@ -1,16 +1,19 @@
-name: Prepare fork-PR upstream sources
+name: Prepare build context
 description: |
-  Rewrite `FROM ghcr.io/kairos-io/hadron-sources/...` lines in the
-  committed Dockerfile with checksum-verifying upstream download stages,
-  for fork pull requests only. Trusted builds (same-repo PRs, main
-  branch, tags) leave the Dockerfile untouched: `docker build .` off the
-  committed file just works.
+  Two things every docker/build-push-action call needs:
 
-  A fork pull request cannot publish source-cache images, so a version it
-  bumps has no cache tag to pull and the build fails before compiling.
-  The cache is public, though, so the fork only has to reach upstream
-  for the versions it bumps itself: ask the registry which those are and
-  pull everything else from the cache exactly like a trusted build does.
+  - fork-PR only: rewrite `FROM ghcr.io/kairos-io/hadron-sources/...`
+    lines in the committed Dockerfile with checksum-verifying upstream
+    download stages. A fork PR cannot publish source-cache images, so
+    any version it bumps has no cache tag to pull. The cache is public,
+    though, so the fork only has to reach upstream for the versions it
+    bumps itself.
+
+  - always: generate the per-variant component manifests the final
+    stages COPY into `/usr/lib/hadron/components.json` (container.json
+    and full-image-<fips>-<bootloader>.json). Trusted builds and fork
+    builds both need these; the committed Dockerfile has no other way
+    to produce them.
 
 runs:
   using: composite
@@ -54,3 +57,29 @@ runs:
         # upstream downloads to this list instead of fetching every package.
         HADRON_UPSTREAM_PACKAGES: ${{ steps.source-mode.outputs.packages }}
       run: ./hack/render.sh
+
+    - name: Generate component manifests
+      shell: bash
+      run: |
+        set -euo pipefail
+        # container/full-image stages COPY these into /usr/lib/hadron/components.json.
+        # Generated once on the host (pure sh + awk, no toolchain) so docker
+        # build finds them in the context. Names must match the Dockerfile:
+        #   gen/components/container.json
+        #   gen/components/full-image-<FIPS>-<BOOTLOADER>.json  (2 x 2 = 4)
+        mkdir -p gen/components
+        sh hack/gen-components.sh --shipped "stage2-merge" \
+            --format flat --name container --out-dir gen/components >/dev/null
+        for fips in no-fips fips; do
+            override=""
+            [ "$fips" = "fips" ] && override="--override openssl=OPENSSL_FIPS_VERSION"
+            for bootloader in grub systemd; do
+                sh hack/gen-components.sh \
+                    --shipped "stage2-merge full-image-merge-base full-image-merge-${fips} full-image-pre-${bootloader} full-image-pre-preset full-image-final" \
+                    ${override} \
+                    --format flat \
+                    --name "full-image-${fips}-${bootloader}" \
+                    --out-dir gen/components >/dev/null
+            done
+        done
+        echo "generated component manifests: $(ls gen/components | wc -l) files in gen/components/"

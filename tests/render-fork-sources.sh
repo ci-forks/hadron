@@ -4,9 +4,11 @@ set -eu
 
 repo_root=$(cd "$(dirname "$0")/.." && pwd)
 tmp=$(mktemp -d)
-snapshot="$tmp/Dockerfile.committed"
+# Keep the snapshot outside $tmp so the EXIT trap can restore Dockerfile
+# even after $tmp is gone.
+snapshot=$(mktemp)
 cp "$repo_root/Dockerfile" "$snapshot"
-trap 'rm -rf "$tmp"; cp "$snapshot" "$repo_root/Dockerfile"' EXIT
+trap 'cp "$snapshot" "$repo_root/Dockerfile"; rm -rf "$tmp" "$snapshot"' EXIT
 
 mkdir -p "$tmp/bin"
 # hack/render.sh needs a `yaml` module. On a runner without PyYAML installed,
