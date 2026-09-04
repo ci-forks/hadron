@@ -28,9 +28,9 @@ FIPS ?= "no-fips"
 # tip.
 KAIROS_DOCKERFILE_REF ?= c2426c11c34198fcb50bfe4d43e827619292e26f
 # Versions live in sources.yaml (single source of truth). Dockerfile is
-# generated from Dockerfile.tmpl by `make render`; both KERNEL_VERSION and
-# DWARVES_VERSION are read from sources.yaml so this Makefile does not
-# depend on the rendered Dockerfile existing yet.
+# checked in and regenerable from Dockerfile.tmpl + sources.yaml by
+# `make render`; both KERNEL_VERSION and DWARVES_VERSION are read from
+# sources.yaml so this Makefile does not depend on Dockerfile.
 KERNEL_VERSION ?= $(shell python3 -c "import yaml; print(yaml.safe_load(open('sources.yaml'))['packages']['linux']['version'])")
 DWARVES_VERSION ?= $(shell python3 -c "import yaml; print(yaml.safe_load(open('sources.yaml'))['packages']['dwarves']['version'])")
 # Docker architecture settings + build defaults derived from this
@@ -129,8 +129,11 @@ pull-image:
 	@echo "Pulling base Hadron image from ${IMAGE_NAME}..."
 	@docker pull --platform=${ARCH} ${IMAGE_NAME}
 
-# Dockerfile is generated from Dockerfile.tmpl + sources.yaml. Anyone
-# who edits either file (or hack/render.sh) triggers a regeneration.
+# Dockerfile is checked in so `docker build .` works from a fresh clone. It is
+# regenerable from Dockerfile.tmpl + sources.yaml, and a CI job diffs the
+# regenerated file to enforce that sources.yaml stays the single source of
+# truth for versions. Anyone who edits Dockerfile.tmpl, sources.yaml, or
+# hack/render.sh triggers a regeneration on the next make invocation.
 Dockerfile: Dockerfile.tmpl sources.yaml hack/render.sh
 	@./hack/render.sh
 
@@ -190,7 +193,6 @@ run:
 
 clean:
 	@docker rmi ${IMAGE_NAME}
-	@rm -f Dockerfile
 
 grub-iso:
 	@echo "Building BIOS ISO image..."

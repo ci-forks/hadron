@@ -4,7 +4,9 @@ set -eu
 
 repo_root=$(cd "$(dirname "$0")/.." && pwd)
 tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"; rm -f "$repo_root/Dockerfile"' EXIT
+# Dockerfile is checked in; each render() call overwrites it, so restore the
+# tracked copy on exit instead of removing it.
+trap 'rm -rf "$tmp"; git -C "$repo_root" checkout -- Dockerfile 2>/dev/null || :' EXIT
 
 mkdir -p "$tmp/bin"
 cat > "$tmp/yaml.py" <<'PY'

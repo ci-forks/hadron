@@ -1,0 +1,54 @@
+name: Dockerfile drift
+
+# Enforces that the checked-in Dockerfile stays in sync with Dockerfile.tmpl
+# and sources.yaml. Runs `make render` in `cache` mode (the same mode a
+# trusted build uses) and fails on any diff. Fork PRs are also covered: their
+# runs still render in `cache` mode here, so the drift check reflects what a
+# maintainer would see on main after merge, not the upstream-transformed
+# variant those PRs need at build time.
+
+on:
+  pull_request:
+    paths:
+      - Dockerfile
+      - Dockerfile.tmpl
+      - sources.yaml
+      - hack/render.sh
+      - .github/workflows/dockerfile-drift.yml
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  check-render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install render dependencies
+        run: |
+          set -e
+          if ! command -v envsubst >/dev/null 2>&1; then
+              sudo apt-get update
+              sudo apt-get install -y gettext-base
+          fi
+          if ! python3 -c "import yaml" >/dev/null 2>&1; then
+              sudo apt-get update
+              sudo apt-get install -y python3-yaml
+          fi
+      - name: Regenerate Dockerfile
+        env:
+          HADRON_SOURCE_MODE: cache
+        run: make render
+      - name: Fail on drift
+        run: |
+          if ! git diff --exit-code -- Dockerfile; then
+              cat >&2 <<'EOF'
+
+          Dockerfile is out of sync with Dockerfile.tmpl + sources.yaml.
+          Run `make render` locally and commit the result.
+          EOF
+              exit 1
+          fi

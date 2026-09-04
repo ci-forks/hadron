@@ -1,8 +1,12 @@
 name: Render Dockerfile
 description: |
   Regenerate Dockerfile from Dockerfile.tmpl and sources.yaml.
-  Every job that runs docker/build-push-action must call this first
-  because Dockerfile is a generated artifact and not in git.
+  Dockerfile is checked in so `docker build .` works from a fresh clone,
+  and a lint job diffs a regenerated copy to enforce that sources.yaml
+  stays the single source of truth. This action still runs before every
+  docker/build-push-action job because fork pull requests need the
+  upstream-mode transformation (see hack/render.sh) applied on top of
+  the committed Dockerfile before the build.
 
 runs:
   using: composite

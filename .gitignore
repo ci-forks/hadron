@@ -26,6 +26,8 @@ files/hadron-splash/hadron
 /components.md
 /docs/static/components/
 
-# Rendered artifact - generated from Dockerfile.tmpl + sources.yaml by hack/render.sh
-/Dockerfile
+# Dockerfile is checked in so `docker build .` works from a fresh clone. It is
+# regenerable from Dockerfile.tmpl + sources.yaml via `make render`, and a CI
+# job diffs the regenerated file to enforce that sources.yaml stays the single
+# source of truth for versions.
 /gen/
