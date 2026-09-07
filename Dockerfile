@@ -3790,7 +3790,7 @@ RUN find /skeleton -name "__pycache__" -type d -exec rm -rf {} +
 # Container base image, it has the minimal required to run as a container
 # ------------------------------------------------------------------------------
 # Component version manifests (container.json, full-image-*.json) are
-# generated on the host by hack/render.sh, one file per variant, in
+# generated on the host by hack/gen-manifests.sh, one file per variant, in
 # gen/components/. The final images below COPY the appropriate file
 # straight into /usr/lib/hadron/components.json.
 # ------------------------------------------------------------------------------
@@ -3811,7 +3811,7 @@ RUN if [ "${ARCH}" == "aarch64" ]; then \
     fi
 # Set the version here as otherwise its easy to invalidate the cache with a version change
 RUN echo "VERSION_ID=\"${VERSION}\"" >> etc/os-release
-# Per-image component manifest (generated on the host by hack/render.sh).
+# Per-image component manifest (generated on the host by hack/gen-manifests.sh).
 COPY gen/components/container.json /usr/lib/hadron/components.json
 CMD ["/bin/bash", "-l"]
 
@@ -4136,7 +4136,7 @@ RUN if [ "${BUILD_ARCH}" == "aarch64" ]; then \
     else \
     ln -s /lib/ld-musl-x86_64.so.1 /bin/ldd; \
     fi
-# Per-image component manifest (generated on the host by hack/render.sh).
+# Per-image component manifest (generated on the host by hack/gen-manifests.sh).
 # The four variants (fips/no-fips x grub/systemd) each get their own
 # pre-generated file; ARG interpolation in COPY picks the right one.
 ARG FIPS
