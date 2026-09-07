@@ -533,37 +533,21 @@ jobs:
       - name: Generate combined component versions report
         run: |
           SHA="${{ github.sha }}"
-          mkdir -p /tmp/components
 
-          # container image
-          sh hack/gen-components.sh \
-            --shipped "stage2-merge" \
-            --format md --name container --out-dir /tmp/components
-
-          # full-image bios / no-fips
-          sh hack/gen-components.sh \
-            --shipped "stage2-merge full-image-merge-base full-image-merge-no-fips full-image-pre-grub full-image-final" \
-            --format md --name full-image-bios-no-fips --out-dir /tmp/components
-
-          # full-image bios / fips (openssl version swapped)
-          sh hack/gen-components.sh \
-            --shipped "stage2-merge full-image-merge-base full-image-merge-fips full-image-pre-grub full-image-final" \
-            --override openssl=OPENSSL_FIPS_VERSION \
-            --format md --name full-image-bios-fips --out-dir /tmp/components
-
-          # full-image trusted / no-fips
-          sh hack/gen-components.sh \
-            --shipped "stage2-merge full-image-merge-base full-image-merge-no-fips full-image-pre-systemd full-image-final" \
-            --format md --name full-image-trusted --out-dir /tmp/components
+          # Same stage lists the build manifests use, so the report describes
+          # the package set actually baked into each image. This block used to
+          # carry its own copy, which had drifted: it omitted
+          # full-image-pre-preset.
+          sh hack/gen-manifests.sh --format md --out-dir /tmp/components --quiet
 
           {
             printf '## 🧩 Component versions (amd64)\n\n'
 
             for variant in \
               "container|hadron-container-amd64:${SHA}|container (stage2-merge)" \
-              "full-image-bios-no-fips|hadron-cloud-amd64:${SHA}|bios / no-fips" \
-              "full-image-bios-fips|hadron-cloud-fips-amd64:${SHA}|bios / fips" \
-              "full-image-trusted|hadron-cloud-trusted-${SHA}:24h|trusted (systemd / no-fips)"
+              "full-image-no-fips-grub|hadron-cloud-amd64:${SHA}|bios / no-fips" \
+              "full-image-fips-grub|hadron-cloud-fips-amd64:${SHA}|bios / fips" \
+              "full-image-no-fips-systemd|hadron-cloud-trusted-${SHA}:24h|trusted (systemd / no-fips)"
             do
               name="${variant%%|*}"; rest="${variant#*|}"
               image="${rest%%|*}"; label="${rest#*|}"

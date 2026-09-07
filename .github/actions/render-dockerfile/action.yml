@@ -64,22 +64,6 @@ runs:
         set -euo pipefail
         # container/full-image stages COPY these into /usr/lib/hadron/components.json.
         # Generated once on the host (pure sh + awk, no toolchain) so docker
-        # build finds them in the context. Names must match the Dockerfile:
-        #   gen/components/container.json
-        #   gen/components/full-image-<FIPS>-<BOOTLOADER>.json  (2 x 2 = 4)
-        mkdir -p gen/components
-        sh hack/gen-components.sh --shipped "stage2-merge" \
-            --format flat --name container --out-dir gen/components >/dev/null
-        for fips in no-fips fips; do
-            override=""
-            [ "$fips" = "fips" ] && override="--override openssl=OPENSSL_FIPS_VERSION"
-            for bootloader in grub systemd; do
-                sh hack/gen-components.sh \
-                    --shipped "stage2-merge full-image-merge-base full-image-merge-${fips} full-image-pre-${bootloader} full-image-pre-preset full-image-final" \
-                    ${override} \
-                    --format flat \
-                    --name "full-image-${fips}-${bootloader}" \
-                    --out-dir gen/components >/dev/null
-            done
-        done
-        echo "generated component manifests: $(ls gen/components | wc -l) files in gen/components/"
+        # build finds them in the context. The stage lists live in the script,
+        # which the Makefile's gen-components target calls the same way.
+        sh hack/gen-manifests.sh --format flat --out-dir gen/components

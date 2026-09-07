@@ -164,23 +164,13 @@ test-image-tags: ## Verify build-hadron and build-kairos agree on a local-only b
 ## Component manifests copied into the container / full-image stages
 ## (gen/components/container.json and gen/components/full-image-<fips>-<bootloader>.json).
 ## Regenerated on every build so a fresh clone works with `docker build .`.
+## The stage lists live in hack/gen-manifests.sh, which runs with `set -eu`
+## so a failure part-way through the five manifests stops the build instead of
+## surfacing later as a BuildKit "failed to compute cache key" on the one file
+## that did not get written.
 .PHONY: gen-components
 gen-components:
-	@mkdir -p gen/components
-	@sh hack/gen-components.sh --shipped "stage2-merge" \
-		--format flat --name container --out-dir gen/components >/dev/null
-	@for fips in no-fips fips; do \
-		override=""; \
-		[ "$$fips" = "fips" ] && override="--override openssl=OPENSSL_FIPS_VERSION"; \
-		for bootloader in grub systemd; do \
-			sh hack/gen-components.sh \
-				--shipped "stage2-merge full-image-merge-base full-image-merge-$$fips full-image-pre-$$bootloader full-image-pre-preset full-image-final" \
-				$$override \
-				--format flat \
-				--name "full-image-$$fips-$$bootloader" \
-				--out-dir gen/components >/dev/null; \
-		done \
-	done
+	@sh hack/gen-manifests.sh --format flat --out-dir gen/components --quiet
 
 ## This builds the Hadron image from scratch
 build-hadron: gen-components

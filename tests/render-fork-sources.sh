@@ -8,13 +8,17 @@ tmp=$(mktemp -d)
 # even after $tmp is gone.
 snapshot=$(mktemp)
 cp "$repo_root/Dockerfile" "$snapshot"
-# Restore the committed Dockerfile on any exit, including Ctrl-C and a
-# cancelled CI job. Without INT/TERM the working tree keeps the rendered
-# downloader stages, which is never what the user wants.
+# Restore the committed Dockerfile on any exit, including Ctrl-C, a dropped
+# terminal and a cancelled CI job. This is `#!/bin/sh` (dash on the runners),
+# and dash leaves an untrapped signal at SIG_DFL: the process is killed and the
+# EXIT trap never runs. Without INT/TERM/HUP the working tree keeps the rendered
+# downloader stages, and Dockerfile is tracked now, so a following `git commit
+# -a` would land them.
 cleanup() { cp "$snapshot" "$repo_root/Dockerfile"; rm -rf "$tmp" "$snapshot"; }
 trap cleanup EXIT
 trap 'cleanup; trap - INT; kill -INT $$' INT
 trap 'cleanup; trap - TERM; kill -TERM $$' TERM
+trap 'cleanup; trap - HUP; kill -HUP $$' HUP
 
 mkdir -p "$tmp/bin"
 # hack/render.sh needs a `yaml` module. On a runner without PyYAML installed,
