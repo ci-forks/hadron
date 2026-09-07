@@ -8,7 +8,13 @@ tmp=$(mktemp -d)
 # even after $tmp is gone.
 snapshot=$(mktemp)
 cp "$repo_root/Dockerfile" "$snapshot"
-trap 'cp "$snapshot" "$repo_root/Dockerfile"; rm -rf "$tmp" "$snapshot"' EXIT
+# Restore the committed Dockerfile on any exit, including Ctrl-C and a
+# cancelled CI job. Without INT/TERM the working tree keeps the rendered
+# downloader stages, which is never what the user wants.
+cleanup() { cp "$snapshot" "$repo_root/Dockerfile"; rm -rf "$tmp" "$snapshot"; }
+trap cleanup EXIT
+trap 'cleanup; trap - INT; kill -INT $$' INT
+trap 'cleanup; trap - TERM; kill -TERM $$' TERM
 
 mkdir -p "$tmp/bin"
 # hack/render.sh needs a `yaml` module. On a runner without PyYAML installed,
@@ -41,10 +47,6 @@ def safe_load(stream):
 PY
 
 cd "$repo_root"
-
-# libkcapi is the fixture package used throughout. Its ARG default is the
-# single source of truth for its pinned version; the tests below read it once.
-libkcapi_version=$(awk -F= '/^ARG LIBKCAPI_VERSION=/{print $2; exit}' Dockerfile)
 
 # render [package-list]
 # Restores the committed Dockerfile first so the test is idempotent across
@@ -224,3 +226,35 @@ fi
 # line intact.
 cp "$snapshot" Dockerfile
 grep -q '^FROM ghcr.io/kairos-io/hadron-sources/libkcapi:\${LIBKCAPI_VERSION} AS libkcapi-download$' Dockerfile
+
+# --- Global-ARG invariant -----------------------------------------------------
+# Every ${X_VERSION} that shows up in a `FROM ghcr.io/.../pkg:${X_VERSION}` tag
+# has to be declared as a global ARG (before the first FROM). Docker only
+# interpolates globally-scoped ARGs into FROM lines; a stage-local ARG would
+# expand to the empty string and the trusted build would pull an unpinned
+# floating tag. hack/render.sh scans the whole file with re.MULTILINE and would
+# not catch that regression, so guard it here on the committed Dockerfile.
+PYTHONPATH="$tmp" python3 - <<'PY'
+import re, sys
+from pathlib import Path
+
+src = Path('Dockerfile').read_text()
+first_from = re.search(r'(?m)^FROM ', src)
+if first_from is None:
+    raise SystemExit('Dockerfile has no FROM line')
+header = src[:first_from.start()]
+globals_ = {m.group(1) for m in re.finditer(r'(?m)^ARG ([A-Z0-9_]+)(?:=|$)', header)}
+
+missing = []
+for line in src.splitlines():
+    if not line.startswith('FROM ghcr.io/kairos-io/hadron-sources/'):
+        continue
+    for name in re.findall(r'\$\{([A-Z0-9_]+)\}', line):
+        if name not in globals_:
+            missing.append((name, line))
+
+if missing:
+    for name, line in missing:
+        print(f'ARG {name} used in a FROM tag but not declared before the first FROM:\n  {line}', file=sys.stderr)
+    raise SystemExit(1)
+PY

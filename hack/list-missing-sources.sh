@@ -30,11 +30,14 @@ fi
 accept='application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json'
 
 pinned=$(mktemp)
-trap 'rm -f "$pinned"' EXIT
+raw=$(mktemp)
+trap 'rm -f "$pinned" "$raw"' EXIT
 
 # The pinned version for each package is the default of its
 # `ARG <version_arg>=<version>` in the committed Dockerfile
 # (single source of truth); sources.yaml only names the version_arg.
+# awk writes to $raw (not a pipeline) so an `exit 1` on a missing ARG
+# actually fails the script under POSIX sh (no pipefail).
 awk '
     /^ARG [A-Z0-9_]+=/ {
         line = substr($0, 5)
@@ -60,7 +63,8 @@ awk '
             }
         }
     }
-' Dockerfile | sort > "$pinned"
+' Dockerfile > "$raw"
+sort "$raw" > "$pinned"
 
 # One anonymous pull token covering every package, rather than a token
 # round-trip per package. Registry tokens are scoped, so every package the

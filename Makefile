@@ -161,8 +161,29 @@ test-render: ## Verify fork-PR upstream source rewrite
 test-image-tags: ## Verify build-hadron and build-kairos agree on a local-only base tag
 	@./tests/make-image-tags.sh
 
+## Component manifests copied into the container / full-image stages
+## (gen/components/container.json and gen/components/full-image-<fips>-<bootloader>.json).
+## Regenerated on every build so a fresh clone works with `docker build .`.
+.PHONY: gen-components
+gen-components:
+	@mkdir -p gen/components
+	@sh hack/gen-components.sh --shipped "stage2-merge" \
+		--format flat --name container --out-dir gen/components >/dev/null
+	@for fips in no-fips fips; do \
+		override=""; \
+		[ "$$fips" = "fips" ] && override="--override openssl=OPENSSL_FIPS_VERSION"; \
+		for bootloader in grub systemd; do \
+			sh hack/gen-components.sh \
+				--shipped "stage2-merge full-image-merge-base full-image-merge-$$fips full-image-pre-$$bootloader full-image-pre-preset full-image-final" \
+				$$override \
+				--format flat \
+				--name "full-image-$$fips-$$bootloader" \
+				--out-dir gen/components >/dev/null; \
+		done \
+	done
+
 ## This builds the Hadron image from scratch
-build-hadron:
+build-hadron: gen-components
 	@echo "Building Hadron image..."
 	@docker build ${PROGRESS_FLAG} --platform=${ARCH} --load \
 	--build-arg JOBS=${JOBS} \
