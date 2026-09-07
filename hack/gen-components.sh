@@ -28,10 +28,14 @@ ROOT="${HADRON_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}"
 
 # --- Resolve Dockerfile content + commit + display ref ---
 # The committed Dockerfile carries every pinned version as an
-# `ARG <VERSION_ARG>=<version>` default. Historical tags (before this
-# repo committed the Dockerfile) only shipped Dockerfile.tmpl and used
-# hack/render.sh to render it against sources.yaml; extract those from
-# the ref and render into a tmpdir so per-tag snapshots keep working.
+# `ARG <VERSION_ARG>=<version>` default, and that is the only row source
+# below. Every v* tag in this repo ships a tracked Dockerfile with the full
+# set (94 ARGs at v0.3.5 through 103 at v0.5.1), so tags resolve on the
+# first branch. The second branch is for a ref that predates the tracked
+# Dockerfile and only shipped Dockerfile.tmpl: extract that plus sources.yaml
+# and hack/ from the ref and render with the ref's own render.sh. Such a ref
+# renders with the versions substituted into the FROM lines and only three
+# ARG *_VERSION defaults left, which is what MIN_VERSION_ARGS below catches.
 if [ "$REF" = "worktree" ] || [ -z "$REF" ]; then
   DOCKERFILE_CONTENT="$(cat "$ROOT/Dockerfile")"
   COMMIT="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
@@ -49,6 +53,26 @@ else
   fi
   COMMIT="$(git -C "$ROOT" rev-parse --short "$REF" 2>/dev/null || echo unknown)"
   REF_NAME="$REF"
+fi
+
+# Refuse to emit a manifest from a Dockerfile that carries almost no version
+# ARGs. Without this the failure is silent and worse than an error: the row
+# loop below emits the three rows it found, exits 0, and hack/gen-snapshot.sh
+# (which only skips a ref on non-zero exit) publishes that three-row table for
+# the ref as if it were the whole component list. Any real Hadron Dockerfile
+# has more than 90; the floor is set well under that so it only fires on a
+# ref whose versions never reached the ARG defaults.
+# HADRON_MIN_VERSION_ARGS lowers it for the small fixtures in
+# hack/gen-components_test.sh. Nothing in the build or CI sets it.
+MIN_VERSION_ARGS="${HADRON_MIN_VERSION_ARGS:-20}"
+VERSION_ARG_COUNT="$(printf '%s\n' "$DOCKERFILE_CONTENT" \
+  | grep -cE '^ARG [A-Z0-9_]+_VERSION=' || true)"
+if [ "$VERSION_ARG_COUNT" -lt "$MIN_VERSION_ARGS" ]; then
+  echo "error: ref '$REF_NAME' ($COMMIT) yields only $VERSION_ARG_COUNT" \
+       "ARG *_VERSION defaults, need at least $MIN_VERSION_ARGS." \
+       "Its versions are not in the Dockerfile ARG defaults, so a manifest" \
+       "built from it would be near-empty. Refusing to write one." >&2
+  exit 1
 fi
 
 GROUPS_TMP="$(mktemp)"

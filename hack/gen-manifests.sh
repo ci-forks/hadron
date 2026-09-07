@@ -4,10 +4,13 @@
 #
 # The stage lists used to be copied into the Makefile, into
 # .github/actions/render-dockerfile/action.yml and into
-# .github/workflows/PR_multiarch.yml. Three copies drifted: the report one had
-# lost full-image-pre-preset, so it described a different package set from the
-# one actually baked into the image, with nothing to detect it. They live here
-# now, and adding or renaming a merge stage is one edit.
+# .github/workflows/PR_multiarch.yml, and the three copies had already diverged:
+# the report one omitted full-image-pre-preset. That name is not a Dockerfile
+# stage -- the pre-preset split was retired when preset-all moved into
+# full-image-final -- so gen-components.sh matched nothing for it and the
+# divergence happened to change no output. It is dropped here rather than
+# copied a fourth time. The point of keeping one list is that the next
+# divergence will not be harmless.
 #
 # Output names are what the consumers read:
 #   container.<ext>
@@ -51,7 +54,7 @@ for fips in no-fips fips; do
     for bootloader in grub systemd; do
         # shellcheck disable=SC2086 # $override is either empty or two words
         sh "$GEN" \
-            --shipped "stage2-merge full-image-merge-base full-image-merge-${fips} full-image-pre-${bootloader} full-image-pre-preset full-image-final" \
+            --shipped "stage2-merge full-image-merge-base full-image-merge-${fips} full-image-pre-${bootloader} full-image-final" \
             $override \
             --format "$FORMAT" \
             --name "full-image-${fips}-${bootloader}" \
