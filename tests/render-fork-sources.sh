@@ -136,6 +136,35 @@ for line in dockerfile.splitlines():
             raise SystemExit(
                 f'{name} lists {host} only; add a fallback mirror in sources.yaml'
             )
+
+# less-704's configure exits 1 with "Cannot find terminal libraries" if no
+# terminal library is visible to it (kairos-io/hadron#587). Two anchors have
+# to hold at once: the `less` build stage has to see ncurses' libtinfo so it
+# configures at all, and the assembled full image has to ship that same
+# libtinfo next to the `less` binary or the binary links fine but refuses to
+# start at runtime -- a failure mode CI's image-structure tests cannot catch
+# today, since those only run against the `container` target, which never
+# ships `less` in the first place.
+def stage_body(marker):
+    if marker not in dockerfile:
+        raise SystemExit(f'stage {marker!r} not found in rendered Dockerfile')
+    return dockerfile.split(marker, 1)[1].split('\nFROM ', 1)[0]
+
+less_stage = stage_body('FROM rsync AS less\n')
+if 'COPY --from=ncurses /ncurses/ /\n' not in less_stage:
+    raise SystemExit(
+        "the 'less' stage no longer copies ncurses -- its configure will "
+        'fail with "Cannot find terminal libraries" (kairos-io/hadron#587)'
+    )
+
+merge_base = stage_body('FROM alpine-base AS full-image-merge-base\n')
+if 'COPY --from=ncurses-runtime / /skeleton/' not in merge_base:
+    raise SystemExit(
+        "full-image-merge-base no longer ships ncurses' libtinfo -- less "
+        'would still build but fail to start at runtime (kairos-io/hadron#587)'
+    )
+if 'COPY --from=less /less/ /skeleton/' not in merge_base:
+    raise SystemExit('full-image-merge-base no longer ships the less stage')
 PY
 
 # --- Restricted upstream mode -------------------------------------------------

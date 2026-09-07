@@ -133,6 +133,8 @@ FROM ghcr.io/kairos-io/hadron-sources/dbus:${DBUS_VERSION} AS dbus-download
 FROM ghcr.io/kairos-io/hadron-sources/expat:${EXPAT_VERSION} AS expat-download
 FROM ghcr.io/kairos-io/hadron-sources/libseccomp:${SECCOMP_VERSION} AS libseccomp-download
 FROM ghcr.io/kairos-io/hadron-sources/strace:${STRACE_VERSION} AS strace-download
+FROM ghcr.io/kairos-io/hadron-sources/less:${LESS_VERSION} AS less-download
+FROM ghcr.io/kairos-io/hadron-sources/ncurses:${NCURSES_VERSION} AS ncurses-download
 FROM ghcr.io/kairos-io/hadron-sources/kbd:${KBD_VERSION} AS kbd-download
 FROM ghcr.io/kairos-io/hadron-sources/iptables:${IPTABLES_VERSION} AS iptables-download
 FROM ghcr.io/kairos-io/hadron-sources/libmnl:${LIBMNL_VERSION} AS libmnl-download
@@ -266,6 +268,8 @@ COPY --from=dbus-download /sources/downloads/dbus.tar.xz /sources/downloads/
 COPY --from=expat-download /sources/downloads/expat.tar.gz /sources/downloads/
 COPY --from=libseccomp-download /sources/downloads/libseccomp.tar.gz /sources/downloads/
 COPY --from=strace-download /sources/downloads/strace.tar.xz /sources/downloads/
+COPY --from=less-download /sources/downloads/less.tar.gz /sources/downloads/
+COPY --from=ncurses-download /sources/downloads/ncurses.tar.gz /sources/downloads/
 COPY --from=kbd-download /sources/downloads/kbd.tar.gz /sources/downloads/
 COPY --from=iptables-download /sources/downloads/iptables.tar.xz /sources/downloads/
 COPY --from=libmnl-download /sources/downloads/libmnl.tar.bz2 /sources/downloads/
@@ -2049,6 +2053,76 @@ WORKDIR /sources/strace
 RUN ./configure ${COMMON_CONFIGURE_ARGS} --enable-mpers=check
 RUN make -s -j${JOBS} -l${MAX_LOAD} && make -s -j${JOBS} -l${MAX_LOAD} install DESTDIR=/strace
 
+## ncurses — `less` refuses to configure without a terminal library and
+## this image has never shipped one, so build the narrowest thing that
+## satisfies it instead of a general-purpose ncurses:
+##
+##   --with-termlib=tinfo   split the terminfo lookups into libtinfo so
+##                          less links that instead of all of curses
+##   --with-shared
+##   --without-normal       shared libtinfo only, no static archives
+##                          (--disable-static from COMMON_CONFIGURE_ARGS
+##                          is not an option ncurses knows)
+##
+## The utility programs stay enabled because `tic` compiles the terminfo
+## database during `make install` — --without-progs leaves $TIC empty and
+## the install dies on `run_tic.sh: -V: not found`. They are installed
+## into a throwaway DESTDIR: only libtinfo, the headers and a handful of
+## terminfo entries get promoted to /ncurses, so the image gains 27K of
+## terminal descriptions instead of the full ~2700-entry database. The
+## kept entries cover what a Kairos console reports: VGA console, serial,
+## ssh from a graphical terminal, and the two multiplexers.
+FROM rsync AS ncurses
+ARG JOBS
+COPY --from=sources-downloader /sources/downloads/ncurses.tar.gz /sources/
+RUN mkdir -p /ncurses
+WORKDIR /sources
+RUN tar -xf ncurses.tar.gz && mv ncurses-* ncurses
+WORKDIR /sources/ncurses
+RUN ./configure ${COMMON_CONFIGURE_ARGS} \
+        --with-shared \
+        --without-normal \
+        --with-termlib=tinfo \
+        --without-ada \
+        --without-cxx \
+        --without-cxx-binding \
+        --without-debug \
+        --without-manpages \
+        --without-tests
+RUN make -s -j${JOBS} -l${MAX_LOAD} && make -s -j${JOBS} -l${MAX_LOAD} install DESTDIR=/ncurses-full
+RUN mkdir -p /ncurses/usr/include /ncurses/usr/lib && \
+    cp -a /ncurses-full/usr/lib/libtinfo.so* /ncurses/usr/lib/ && \
+    cp -a /ncurses-full/usr/include/*.h /ncurses/usr/include/ && \
+    for term in ansi dumb linux screen screen-256color tmux tmux-256color \
+                vt100 vt102 vt220 xterm xterm-color xterm-256color; do \
+        dir=$(printf %.1s "${term}"); \
+        install -Dm644 "/ncurses-full/usr/share/terminfo/${dir}/${term}" \
+            "/ncurses/usr/share/terminfo/${dir}/${term}"; \
+    done
+
+## ncurses-runtime — the subset that ships in /skeleton: libtinfo and
+## the terminfo entries, but not the headers, which are only needed at
+## build time by the `less` stage (see COPY --from=ncurses / above).
+FROM scratch AS ncurses-runtime
+COPY --from=ncurses /ncurses/usr/lib/ /usr/lib/
+COPY --from=ncurses /ncurses/usr/share/terminfo/ /usr/share/terminfo/
+
+## less — real upstream `less`, replacing the busybox applet.
+## The busybox `less` mishandles systemd's pagination and color codes
+## (see kairos-io/kairos#3815); shipping the real thing lets us drop
+## the SYSTEMD_COLORS=0 fallback in /etc/profile.d.
+FROM rsync AS less
+ARG JOBS
+COPY --from=ncurses /ncurses/ /
+COPY --from=sources-downloader /sources/downloads/less.tar.gz /sources/
+RUN mkdir -p /less
+WORKDIR /sources
+RUN tar -xf less.tar.gz && mv less-* less
+WORKDIR /sources/less
+RUN ./configure ${COMMON_CONFIGURE_ARGS}
+RUN make -s -j${JOBS} -l${MAX_LOAD} && make -s -j${JOBS} -l${MAX_LOAD} install DESTDIR=/less && \
+    rm -rf /less/usr/share/man
+
 ## libmnl
 FROM rsync AS libmnl
 ARG JOBS
@@ -3344,7 +3418,6 @@ FROM ${KERNEL_TYPE}-tools AS extra-tools
 # cool utils to have for easy management and utility:
 # free
 # clear
-# less
 # lsof
 # more
 # ps
@@ -3737,6 +3810,13 @@ COPY --from=tpm2-tss /tpm2-tss/ /skeleton/
 
 COPY --from=libcap /libcap/ /skeleton/
 
+## Real `less`, replacing the busybox applet — see kairos-io/kairos#3815.
+## libtinfo and its terminfo entries come along because less links them;
+## the ncurses-runtime stage strips the /usr/include headers that only
+## exist on the ncurses builder for the less compile step.
+COPY --from=ncurses-runtime / /skeleton/
+COPY --from=less /less/ /skeleton/
+
 COPY --from=extra-tools /tools/ /skeleton/
 
 # Clean m4 leftover files if any, they are not used in runtime
@@ -3893,9 +3973,6 @@ RUN rm -Rf /usr/share/pkgconfig
 # set a default locale
 RUN echo "export LANG=en_US.UTF-8" >> /etc/profile.d/locale.sh
 RUN echo "en_US.UTF-8" > /etc/locale.conf
-# Export no colors for systemd
-# Make it a check so if we move to the proper less it will not hit this
-RUN echo "if ! less -V > /dev/null 2>&1 ; then export SYSTEMD_COLORS=0; fi" >> /etc/profile.d/systemd-no-colors.sh
 RUN chmod 644 /etc/profile.d/locale.sh
 RUN chmod 644 /etc/bash.bashrc
 RUN busybox --install
