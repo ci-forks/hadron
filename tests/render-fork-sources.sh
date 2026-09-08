@@ -123,7 +123,7 @@ if 'sleep $((attempt * 5))' not in dockerfile:
 # Some upstreams time out or refuse CI runners outright. A package served
 # only from one of those hosts fails the whole fork build, so require a
 # second URL for every one of them. The checksum test still gates the bytes.
-unreliable = ('musl.libc.org', 'zlib.net')
+unreliable = ('busybox.net', 'musl.libc.org', 'zlib.net')
 for line in dockerfile.splitlines():
     if not line.startswith('ARG ') or '_SOURCE_URLS=' not in line:
         continue
