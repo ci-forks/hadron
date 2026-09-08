@@ -163,7 +163,9 @@ test-image-tags: ## Verify build-hadron and build-kairos agree on a local-only b
 
 ## Component manifests copied into the container / full-image stages
 ## (gen/components/container.json and gen/components/full-image-<fips>-<bootloader>.json).
-## Regenerated on every build so a fresh clone works with `docker build .`.
+## Regenerated on every build: `make build-hadron` depends on this target, so a
+## clean clone builds. A hand-rolled `docker build .` needs `make gen-components`
+## first, since nothing under gen/ is committed.
 ## The stage lists live in hack/gen-manifests.sh, which runs with `set -eu`
 ## so a failure part-way through the five manifests stops the build instead of
 ## surfacing later as a BuildKit "failed to compute cache key" on the one file

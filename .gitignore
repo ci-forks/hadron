@@ -26,5 +26,6 @@ files/hadron-splash/hadron
 /components.md
 /docs/static/components/
 
-# Ephemeral gen tree used by fork-PR upstream mode and legacy component generation.
+# Per-variant component manifests, generated on the host by hack/gen-manifests.sh
+# before every docker build.
 /gen/

@@ -536,8 +536,8 @@ jobs:
 
           # Same stage lists the build manifests use, so the report describes
           # the package set actually baked into each image. This block used to
-          # carry its own copy, which had drifted: it omitted
-          # full-image-pre-preset.
+          # carry its own copy of them; the single definition now lives in
+          # hack/gen-manifests.sh.
           sh hack/gen-manifests.sh --format md --out-dir /tmp/components --quiet
 
           {
