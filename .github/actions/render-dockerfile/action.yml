@@ -2,12 +2,18 @@ name: Prepare build context
 description: |
   Two things every docker/build-push-action call needs:
 
-  - fork-PR only: rewrite `FROM ghcr.io/kairos-io/hadron-sources/...`
-    lines in the committed Dockerfile with checksum-verifying upstream
-    download stages. A fork PR cannot publish source-cache images, so
-    any version it bumps has no cache tag to pull. The cache is public,
-    though, so the fork only has to reach upstream for the versions it
-    bumps itself.
+  - fork-PR only: rewrite `FROM ${SOURCES_REPO}/...` lines in the
+    committed Dockerfile with checksum-verifying upstream download
+    stages. A fork PR cannot publish source-cache images, so any version
+    it bumps has no cache tag to pull. The cache is public, though, so
+    the fork only has to reach upstream for the versions it bumps
+    itself.
+
+    `SOURCES_REPO` is a build arg, so pointing the build at a mirror or
+    a private copy of the cache needs no rewrite at all. This step is
+    not about *where* the cache is: it replaces a `FROM <cache image>`
+    stage with a different stage that curls the tarball and checks its
+    sha256, for versions that exist in no cache anywhere.
 
   - always: generate the per-variant component manifests the final
     stages COPY into `/usr/lib/hadron/components.json` (container.json

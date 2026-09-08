@@ -24,6 +24,14 @@ ARG GNU_MIRROR_1=https://ftpmirror.gnu.org
 ARG GNU_MIRROR_2=https://ftp.gnu.org/gnu
 ARG GNU_MIRROR_3=https://mirror.netcologne.de/gnu
 
+## Registry and namespace holding the pre-downloaded package sources.
+## Every source stage below pulls `${SOURCES_REPO}/<pkg>:${<pkg>_VERSION}`.
+## Override it to build against a mirror or a private copy of the cache:
+##   docker build --build-arg SOURCES_REPO=my.registry/team/hadron-sources .
+## The cache is a plain OCI registry: the populate-sources workflow publishes
+## to the same path, so a mirror only has to hold the same tags.
+ARG SOURCES_REPO=ghcr.io/kairos-io/hadron-sources
+
 ## Cached-package versions.
 ## Single source of truth for the versions this project builds against.
 ## Each ${<name>_VERSION} in the FROM lines below expands to the default here.
@@ -162,7 +170,7 @@ WORKDIR /sources/downloads
 # The tarball mussel itself needs for its cross-toolchain build (see
 # stage0 below), cached the same way every other source in this
 # Dockerfile is -- so mussel never has to fetch musl.libc.org directly.
-FROM ghcr.io/kairos-io/hadron-sources/musl-toolchain:${MUSL_TOOLCHAIN_VERSION} AS musl-toolchain-download
+FROM ${SOURCES_REPO}/musl-toolchain:${MUSL_TOOLCHAIN_VERSION} AS musl-toolchain-download
 
 FROM alpine-base AS stage0
 
@@ -223,104 +231,104 @@ ENV BUILD=${BUILD_ARCH}-pc-linux-musl
 
 
 ### This stages below are used to download the sources for the packages
-FROM ghcr.io/kairos-io/hadron-sources/curl:${CURL_VERSION} AS curl-download
-FROM ghcr.io/kairos-io/hadron-sources/rsync:${RSYNC_VERSION} AS rsync-download
-FROM ghcr.io/kairos-io/hadron-sources/xxhash:${XXHASH_VERSION} AS xxhash-download
-FROM ghcr.io/kairos-io/hadron-sources/zstd:${ZSTD_VERSION} AS zstd-download
-FROM ghcr.io/kairos-io/hadron-sources/lz4:${LZ4_VERSION} AS lz4-download
-FROM ghcr.io/kairos-io/hadron-sources/zlib:${ZLIB_VERSION} AS zlib-download
-FROM ghcr.io/kairos-io/hadron-sources/acl:${ACL_VERSION} AS acl-download
-FROM ghcr.io/kairos-io/hadron-sources/attr:${ATTR_VERSION} AS attr-download
-FROM ghcr.io/kairos-io/hadron-sources/gawk:${GAWK_VERSION} AS gawk-download
-FROM ghcr.io/kairos-io/hadron-sources/ca-certificates:${CA_CERTIFICATES_VERSION} AS ca-certificates-download
-FROM ghcr.io/kairos-io/hadron-sources/systemd:${SYSTEMD_VERSION} AS systemd-download
-FROM ghcr.io/kairos-io/hadron-sources/libcap:${LIBCAP_VERSION} AS libcap-download
+FROM ${SOURCES_REPO}/curl:${CURL_VERSION} AS curl-download
+FROM ${SOURCES_REPO}/rsync:${RSYNC_VERSION} AS rsync-download
+FROM ${SOURCES_REPO}/xxhash:${XXHASH_VERSION} AS xxhash-download
+FROM ${SOURCES_REPO}/zstd:${ZSTD_VERSION} AS zstd-download
+FROM ${SOURCES_REPO}/lz4:${LZ4_VERSION} AS lz4-download
+FROM ${SOURCES_REPO}/zlib:${ZLIB_VERSION} AS zlib-download
+FROM ${SOURCES_REPO}/acl:${ACL_VERSION} AS acl-download
+FROM ${SOURCES_REPO}/attr:${ATTR_VERSION} AS attr-download
+FROM ${SOURCES_REPO}/gawk:${GAWK_VERSION} AS gawk-download
+FROM ${SOURCES_REPO}/ca-certificates:${CA_CERTIFICATES_VERSION} AS ca-certificates-download
+FROM ${SOURCES_REPO}/systemd:${SYSTEMD_VERSION} AS systemd-download
+FROM ${SOURCES_REPO}/libcap:${LIBCAP_VERSION} AS libcap-download
 
-FROM ghcr.io/kairos-io/hadron-sources/util-linux:${UTIL_LINUX_VERSION} AS util-linux-download
-FROM ghcr.io/kairos-io/hadron-sources/python:${PYTHON_VERSION} AS python-download
-FROM ghcr.io/kairos-io/hadron-sources/sqlite3:${SQLITE3_VERSION} AS sqlite3-download
-FROM ghcr.io/kairos-io/hadron-sources/openssl:${OPENSSL_VERSION} AS openssl-download
-FROM ghcr.io/kairos-io/hadron-sources/openssl-fips:${OPENSSL_FIPS_VERSION} AS openssl-fips-download
-FROM ghcr.io/kairos-io/hadron-sources/openssh:${OPENSSH_VERSION} AS openssh-download
-FROM ghcr.io/kairos-io/hadron-sources/pkgconf:${PKGCONFIG_VERSION} AS pkgconf-download
-FROM ghcr.io/kairos-io/hadron-sources/dbus:${DBUS_VERSION} AS dbus-download
-FROM ghcr.io/kairos-io/hadron-sources/expat:${EXPAT_VERSION} AS expat-download
-FROM ghcr.io/kairos-io/hadron-sources/libseccomp:${SECCOMP_VERSION} AS libseccomp-download
-FROM ghcr.io/kairos-io/hadron-sources/strace:${STRACE_VERSION} AS strace-download
-FROM ghcr.io/kairos-io/hadron-sources/less:${LESS_VERSION} AS less-download
-FROM ghcr.io/kairos-io/hadron-sources/ncurses:${NCURSES_VERSION} AS ncurses-download
-FROM ghcr.io/kairos-io/hadron-sources/kbd:${KBD_VERSION} AS kbd-download
-FROM ghcr.io/kairos-io/hadron-sources/iptables:${IPTABLES_VERSION} AS iptables-download
-FROM ghcr.io/kairos-io/hadron-sources/libmnl:${LIBMNL_VERSION} AS libmnl-download
-FROM ghcr.io/kairos-io/hadron-sources/libnftnl:${LIBNFTNL_VERSION} AS libnftnl-download
-FROM ghcr.io/kairos-io/hadron-sources/libnfnetlink:${LIBNFNETLINK_VERSION} AS libnfnetlink-download
-FROM ghcr.io/kairos-io/hadron-sources/libnetfilter_conntrack:${LIBNETFILTER_CONNTRACK_VERSION} AS libnetfilter_conntrack-download
-FROM ghcr.io/kairos-io/hadron-sources/libnetfilter_cttimeout:${LIBNETFILTER_CTTIMEOUT_VERSION} AS libnetfilter_cttimeout-download
-FROM ghcr.io/kairos-io/hadron-sources/libnetfilter_cthelper:${LIBNETFILTER_CTHELPER_VERSION} AS libnetfilter_cthelper-download
-FROM ghcr.io/kairos-io/hadron-sources/libnetfilter_queue:${LIBNETFILTER_QUEUE_VERSION} AS libnetfilter_queue-download
-FROM ghcr.io/kairos-io/hadron-sources/conntrack-tools:${CONNTRACK_TOOLS_VERSION} AS conntrack-tools-download
-FROM ghcr.io/kairos-io/hadron-sources/procps-ng:${PROCPS_NG_VERSION} AS procps-ng-download
-FROM ghcr.io/kairos-io/hadron-sources/linux:${KERNEL_VERSION} AS linux-download
-FROM ghcr.io/kairos-io/hadron-sources/flex:${FLEX_VERSION} AS flex-download
-FROM ghcr.io/kairos-io/hadron-sources/bison:${BISON_VERSION} AS bison-download
-FROM ghcr.io/kairos-io/hadron-sources/autoconf:${AUTOCONF_VERSION} AS autoconf-download
-FROM ghcr.io/kairos-io/hadron-sources/automake:${AUTOMAKE_VERSION} AS automake-download
-FROM ghcr.io/kairos-io/hadron-sources/musl-fts:${FTS_VERSION} AS musl-fts-download
-FROM ghcr.io/kairos-io/hadron-sources/libtool:${LIBTOOL_VERSION} AS libtool-download
-FROM ghcr.io/kairos-io/hadron-sources/libelf:${LIBELF_VERSION} AS libelf-download
-FROM ghcr.io/kairos-io/hadron-sources/xz:${XZUTILS_VERSION} AS xz-download
-FROM ghcr.io/kairos-io/hadron-sources/kmod:${KMOD_VERSION} AS kmod-download
-FROM ghcr.io/kairos-io/hadron-sources/dracut:${DRACUT_VERSION} AS dracut-download
-FROM ghcr.io/kairos-io/hadron-sources/libaio:${LIBAIO_VERSION} AS libaio-download
-FROM ghcr.io/kairos-io/hadron-sources/lvm2:${LVM2_VERSION} AS lvm2-download
-FROM ghcr.io/kairos-io/hadron-sources/multipath-tools:${MULTIPATH_TOOLS_VERSION} AS multipath-tools-download
-FROM ghcr.io/kairos-io/hadron-sources/json-c:${JSONC_VERSION} AS json-c-download
-FROM ghcr.io/kairos-io/hadron-sources/cmake:${CMAKE_VERSION} AS cmake-download
-FROM ghcr.io/kairos-io/hadron-sources/dwarves:${DWARVES_VERSION} AS dwarves-download
-FROM ghcr.io/kairos-io/hadron-sources/libbpf:${LIBBPF_VERSION} AS libbpf-download
-FROM ghcr.io/kairos-io/hadron-sources/argp-standalone:${ARGP_STANDALONE_VERSION} AS argp-standalone-download
-FROM ghcr.io/kairos-io/hadron-sources/musl-obstack:${MUSL_OBSTACK_VERSION} AS musl-obstack-download
-FROM ghcr.io/kairos-io/hadron-sources/elfutils:${ELFUTILS_VERSION} AS elfutils-download
-FROM ghcr.io/kairos-io/hadron-sources/urcu:${URCU_VERSION} AS urcu-download
-FROM ghcr.io/kairos-io/hadron-sources/parted:${PARTED_VERSION} AS parted-download
-FROM ghcr.io/kairos-io/hadron-sources/e2fsprogs:${E2FSPROGS_VERSION} AS e2fsprogs-download
-FROM ghcr.io/kairos-io/hadron-sources/dosfstools:${DOSFSTOOLS_VERSION} AS dosfstools-download
-FROM ghcr.io/kairos-io/hadron-sources/libtirpc:${LIBTIRPC_VERSION} AS libtirpc-download
-FROM ghcr.io/kairos-io/hadron-sources/libnl:${LIBNL_VERSION} AS libnl-download
-FROM ghcr.io/kairos-io/hadron-sources/libevent:${LIBEVENT_VERSION} AS libevent-download
-FROM ghcr.io/kairos-io/hadron-sources/keyutils:${KEYUTILS_VERSION} AS keyutils-download
-FROM ghcr.io/kairos-io/hadron-sources/nfs-utils:${NFS_UTILS_VERSION} AS nfs-utils-download
-FROM ghcr.io/kairos-io/hadron-sources/cryptsetup:${CRYPTSETUP_VERSION} AS cryptsetup-download
-FROM ghcr.io/kairos-io/hadron-sources/grub:${GRUB_VERSION} AS grub-download
-FROM ghcr.io/kairos-io/hadron-sources/pam:${PAM_VERSION} AS pam-download
-FROM ghcr.io/kairos-io/hadron-sources/shadow:${SHADOW_VERSION} AS shadow-download
-FROM ghcr.io/kairos-io/hadron-sources/aports:${APORTS_VERSION} AS aports-download
-FROM ghcr.io/kairos-io/hadron-sources/busybox:${BUSYBOX_VERSION} AS busybox-download
-FROM ghcr.io/kairos-io/hadron-sources/musl:${MUSL_VERSION} AS musl-download
-FROM ghcr.io/kairos-io/hadron-sources/gcc:${GCC_VERSION} AS gcc-download
-FROM ghcr.io/kairos-io/hadron-sources/gmp:${GMP_VERSION} AS gmp-download
-FROM ghcr.io/kairos-io/hadron-sources/mpc:${MPC_VERSION} AS mpc-download
-FROM ghcr.io/kairos-io/hadron-sources/mpfr:${MPFR_VERSION} AS mpfr-download
-FROM ghcr.io/kairos-io/hadron-sources/make:${MAKE_VERSION} AS make-download
-FROM ghcr.io/kairos-io/hadron-sources/binutils:${BINUTILS_VERSION} AS binutils-download
-FROM ghcr.io/kairos-io/hadron-sources/popt:${POPT_VERSION} AS popt-download
-FROM ghcr.io/kairos-io/hadron-sources/m4:${M4_VERSION} AS m4-download
-FROM ghcr.io/kairos-io/hadron-sources/readline:${READLINE_VERSION} AS readline-download
-FROM ghcr.io/kairos-io/hadron-sources/perl:${PERL_VERSION} AS perl-download
-FROM ghcr.io/kairos-io/hadron-sources/coreutils:${COREUTILS_VERSION} AS coreutils-download
-FROM ghcr.io/kairos-io/hadron-sources/findutils:${FINDUTILS_VERSION} AS findutils-download
-FROM ghcr.io/kairos-io/hadron-sources/grep:${GREP_VERSION} AS grep-download
-FROM ghcr.io/kairos-io/hadron-sources/gperf:${GPERF_VERSION} AS gperf-download
-FROM ghcr.io/kairos-io/hadron-sources/diffutils:${DIFFUTILS_VERSION} AS diffutils-download
-FROM ghcr.io/kairos-io/hadron-sources/sudo:${SUDO_VERSION} AS sudo-download
-FROM ghcr.io/kairos-io/hadron-sources/pax-utils:${PAX_UTILS_VERSION} AS pax-utils-download
-FROM ghcr.io/kairos-io/hadron-sources/openscsi:${OPEN_SCSI_VERSION} AS openscsi-download
-FROM ghcr.io/kairos-io/hadron-sources/gdb:${GDB_VERSION} AS gdb-download
-FROM ghcr.io/kairos-io/hadron-sources/libffi:${LIBFFI_VERSION} AS libffi-download
-FROM ghcr.io/kairos-io/hadron-sources/tpm2-tss:${TPM2_TSS_VERSION} AS tpm2-tss-download
-FROM ghcr.io/kairos-io/hadron-sources/libucontext:${LIBUCONTEXT_VERSION} AS libucontext-download
-FROM ghcr.io/kairos-io/hadron-sources/libxml2:${LIBXML2_VERSION} AS libxml2-download
-FROM ghcr.io/kairos-io/hadron-sources/gzip:${GZIP_VERSION} AS gzip-download
+FROM ${SOURCES_REPO}/util-linux:${UTIL_LINUX_VERSION} AS util-linux-download
+FROM ${SOURCES_REPO}/python:${PYTHON_VERSION} AS python-download
+FROM ${SOURCES_REPO}/sqlite3:${SQLITE3_VERSION} AS sqlite3-download
+FROM ${SOURCES_REPO}/openssl:${OPENSSL_VERSION} AS openssl-download
+FROM ${SOURCES_REPO}/openssl-fips:${OPENSSL_FIPS_VERSION} AS openssl-fips-download
+FROM ${SOURCES_REPO}/openssh:${OPENSSH_VERSION} AS openssh-download
+FROM ${SOURCES_REPO}/pkgconf:${PKGCONFIG_VERSION} AS pkgconf-download
+FROM ${SOURCES_REPO}/dbus:${DBUS_VERSION} AS dbus-download
+FROM ${SOURCES_REPO}/expat:${EXPAT_VERSION} AS expat-download
+FROM ${SOURCES_REPO}/libseccomp:${SECCOMP_VERSION} AS libseccomp-download
+FROM ${SOURCES_REPO}/strace:${STRACE_VERSION} AS strace-download
+FROM ${SOURCES_REPO}/less:${LESS_VERSION} AS less-download
+FROM ${SOURCES_REPO}/ncurses:${NCURSES_VERSION} AS ncurses-download
+FROM ${SOURCES_REPO}/kbd:${KBD_VERSION} AS kbd-download
+FROM ${SOURCES_REPO}/iptables:${IPTABLES_VERSION} AS iptables-download
+FROM ${SOURCES_REPO}/libmnl:${LIBMNL_VERSION} AS libmnl-download
+FROM ${SOURCES_REPO}/libnftnl:${LIBNFTNL_VERSION} AS libnftnl-download
+FROM ${SOURCES_REPO}/libnfnetlink:${LIBNFNETLINK_VERSION} AS libnfnetlink-download
+FROM ${SOURCES_REPO}/libnetfilter_conntrack:${LIBNETFILTER_CONNTRACK_VERSION} AS libnetfilter_conntrack-download
+FROM ${SOURCES_REPO}/libnetfilter_cttimeout:${LIBNETFILTER_CTTIMEOUT_VERSION} AS libnetfilter_cttimeout-download
+FROM ${SOURCES_REPO}/libnetfilter_cthelper:${LIBNETFILTER_CTHELPER_VERSION} AS libnetfilter_cthelper-download
+FROM ${SOURCES_REPO}/libnetfilter_queue:${LIBNETFILTER_QUEUE_VERSION} AS libnetfilter_queue-download
+FROM ${SOURCES_REPO}/conntrack-tools:${CONNTRACK_TOOLS_VERSION} AS conntrack-tools-download
+FROM ${SOURCES_REPO}/procps-ng:${PROCPS_NG_VERSION} AS procps-ng-download
+FROM ${SOURCES_REPO}/linux:${KERNEL_VERSION} AS linux-download
+FROM ${SOURCES_REPO}/flex:${FLEX_VERSION} AS flex-download
+FROM ${SOURCES_REPO}/bison:${BISON_VERSION} AS bison-download
+FROM ${SOURCES_REPO}/autoconf:${AUTOCONF_VERSION} AS autoconf-download
+FROM ${SOURCES_REPO}/automake:${AUTOMAKE_VERSION} AS automake-download
+FROM ${SOURCES_REPO}/musl-fts:${FTS_VERSION} AS musl-fts-download
+FROM ${SOURCES_REPO}/libtool:${LIBTOOL_VERSION} AS libtool-download
+FROM ${SOURCES_REPO}/libelf:${LIBELF_VERSION} AS libelf-download
+FROM ${SOURCES_REPO}/xz:${XZUTILS_VERSION} AS xz-download
+FROM ${SOURCES_REPO}/kmod:${KMOD_VERSION} AS kmod-download
+FROM ${SOURCES_REPO}/dracut:${DRACUT_VERSION} AS dracut-download
+FROM ${SOURCES_REPO}/libaio:${LIBAIO_VERSION} AS libaio-download
+FROM ${SOURCES_REPO}/lvm2:${LVM2_VERSION} AS lvm2-download
+FROM ${SOURCES_REPO}/multipath-tools:${MULTIPATH_TOOLS_VERSION} AS multipath-tools-download
+FROM ${SOURCES_REPO}/json-c:${JSONC_VERSION} AS json-c-download
+FROM ${SOURCES_REPO}/cmake:${CMAKE_VERSION} AS cmake-download
+FROM ${SOURCES_REPO}/dwarves:${DWARVES_VERSION} AS dwarves-download
+FROM ${SOURCES_REPO}/libbpf:${LIBBPF_VERSION} AS libbpf-download
+FROM ${SOURCES_REPO}/argp-standalone:${ARGP_STANDALONE_VERSION} AS argp-standalone-download
+FROM ${SOURCES_REPO}/musl-obstack:${MUSL_OBSTACK_VERSION} AS musl-obstack-download
+FROM ${SOURCES_REPO}/elfutils:${ELFUTILS_VERSION} AS elfutils-download
+FROM ${SOURCES_REPO}/urcu:${URCU_VERSION} AS urcu-download
+FROM ${SOURCES_REPO}/parted:${PARTED_VERSION} AS parted-download
+FROM ${SOURCES_REPO}/e2fsprogs:${E2FSPROGS_VERSION} AS e2fsprogs-download
+FROM ${SOURCES_REPO}/dosfstools:${DOSFSTOOLS_VERSION} AS dosfstools-download
+FROM ${SOURCES_REPO}/libtirpc:${LIBTIRPC_VERSION} AS libtirpc-download
+FROM ${SOURCES_REPO}/libnl:${LIBNL_VERSION} AS libnl-download
+FROM ${SOURCES_REPO}/libevent:${LIBEVENT_VERSION} AS libevent-download
+FROM ${SOURCES_REPO}/keyutils:${KEYUTILS_VERSION} AS keyutils-download
+FROM ${SOURCES_REPO}/nfs-utils:${NFS_UTILS_VERSION} AS nfs-utils-download
+FROM ${SOURCES_REPO}/cryptsetup:${CRYPTSETUP_VERSION} AS cryptsetup-download
+FROM ${SOURCES_REPO}/grub:${GRUB_VERSION} AS grub-download
+FROM ${SOURCES_REPO}/pam:${PAM_VERSION} AS pam-download
+FROM ${SOURCES_REPO}/shadow:${SHADOW_VERSION} AS shadow-download
+FROM ${SOURCES_REPO}/aports:${APORTS_VERSION} AS aports-download
+FROM ${SOURCES_REPO}/busybox:${BUSYBOX_VERSION} AS busybox-download
+FROM ${SOURCES_REPO}/musl:${MUSL_VERSION} AS musl-download
+FROM ${SOURCES_REPO}/gcc:${GCC_VERSION} AS gcc-download
+FROM ${SOURCES_REPO}/gmp:${GMP_VERSION} AS gmp-download
+FROM ${SOURCES_REPO}/mpc:${MPC_VERSION} AS mpc-download
+FROM ${SOURCES_REPO}/mpfr:${MPFR_VERSION} AS mpfr-download
+FROM ${SOURCES_REPO}/make:${MAKE_VERSION} AS make-download
+FROM ${SOURCES_REPO}/binutils:${BINUTILS_VERSION} AS binutils-download
+FROM ${SOURCES_REPO}/popt:${POPT_VERSION} AS popt-download
+FROM ${SOURCES_REPO}/m4:${M4_VERSION} AS m4-download
+FROM ${SOURCES_REPO}/readline:${READLINE_VERSION} AS readline-download
+FROM ${SOURCES_REPO}/perl:${PERL_VERSION} AS perl-download
+FROM ${SOURCES_REPO}/coreutils:${COREUTILS_VERSION} AS coreutils-download
+FROM ${SOURCES_REPO}/findutils:${FINDUTILS_VERSION} AS findutils-download
+FROM ${SOURCES_REPO}/grep:${GREP_VERSION} AS grep-download
+FROM ${SOURCES_REPO}/gperf:${GPERF_VERSION} AS gperf-download
+FROM ${SOURCES_REPO}/diffutils:${DIFFUTILS_VERSION} AS diffutils-download
+FROM ${SOURCES_REPO}/sudo:${SUDO_VERSION} AS sudo-download
+FROM ${SOURCES_REPO}/pax-utils:${PAX_UTILS_VERSION} AS pax-utils-download
+FROM ${SOURCES_REPO}/openscsi:${OPEN_SCSI_VERSION} AS openscsi-download
+FROM ${SOURCES_REPO}/gdb:${GDB_VERSION} AS gdb-download
+FROM ${SOURCES_REPO}/libffi:${LIBFFI_VERSION} AS libffi-download
+FROM ${SOURCES_REPO}/tpm2-tss:${TPM2_TSS_VERSION} AS tpm2-tss-download
+FROM ${SOURCES_REPO}/libucontext:${LIBUCONTEXT_VERSION} AS libucontext-download
+FROM ${SOURCES_REPO}/libxml2:${LIBXML2_VERSION} AS libxml2-download
+FROM ${SOURCES_REPO}/gzip:${GZIP_VERSION} AS gzip-download
 FROM sources-downloader-base AS bash-download
 ARG BASH_VERSION=5.3
 # Patch level is the number of patches upstream bash has released for this version https://ftp.gnu.org/gnu/bash/bash-${BASH_VERSION}-patches/
@@ -348,16 +356,16 @@ RUN for i in $(seq 1 ${PATCH_LEVEL}); do \
     done
 WORKDIR /sources/downloads
 
-FROM ghcr.io/kairos-io/hadron-sources/libkcapi:${LIBKCAPI_VERSION} AS libkcapi-download
-FROM ghcr.io/kairos-io/hadron-sources/shim:${SHIM_VERSION} AS shim-download
-FROM ghcr.io/kairos-io/hadron-sources/libiconv:${ICONV_VERSION} AS libiconv-download
-FROM ghcr.io/kairos-io/hadron-sources/bc:${BC_VERSION} AS bc-download
-FROM ghcr.io/kairos-io/hadron-sources/patch:${PATCH_VERSION} AS patch-download
-FROM ghcr.io/kairos-io/hadron-sources/pcre2:${PCRE2_VERSION} AS pcre2-download
-FROM ghcr.io/kairos-io/hadron-sources/glib:${GLIB_VERSION} AS glib-download
-FROM ghcr.io/kairos-io/hadron-sources/qemu:${QEMU_AGENT_VERSION} AS qemu-download
-FROM ghcr.io/kairos-io/hadron-sources/mspack:${MSPACK_VERSION} AS mspack-download
-FROM ghcr.io/kairos-io/hadron-sources/open-vm-tools:${OPENVM_TOOLS_VERSION} AS open-vm-tools-download
+FROM ${SOURCES_REPO}/libkcapi:${LIBKCAPI_VERSION} AS libkcapi-download
+FROM ${SOURCES_REPO}/shim:${SHIM_VERSION} AS shim-download
+FROM ${SOURCES_REPO}/libiconv:${ICONV_VERSION} AS libiconv-download
+FROM ${SOURCES_REPO}/bc:${BC_VERSION} AS bc-download
+FROM ${SOURCES_REPO}/patch:${PATCH_VERSION} AS patch-download
+FROM ${SOURCES_REPO}/pcre2:${PCRE2_VERSION} AS pcre2-download
+FROM ${SOURCES_REPO}/glib:${GLIB_VERSION} AS glib-download
+FROM ${SOURCES_REPO}/qemu:${QEMU_AGENT_VERSION} AS qemu-download
+FROM ${SOURCES_REPO}/mspack:${MSPACK_VERSION} AS mspack-download
+FROM ${SOURCES_REPO}/open-vm-tools:${OPENVM_TOOLS_VERSION} AS open-vm-tools-download
 FROM scratch AS sources-downloader
 COPY --from=curl-download /sources/downloads/curl.tar.gz /sources/downloads/
 COPY --from=rsync-download /sources/downloads/rsync.tar.gz /sources/downloads/

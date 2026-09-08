@@ -18,7 +18,7 @@ name: Populate source caches
 # ARG block of the Dockerfile, append an entry to sources.yaml with
 # its version_arg, sha256, url template, and filename; flip the
 # corresponding Dockerfile downloader stage to
-# `FROM ghcr.io/kairos-io/hadron-sources/<pkg>:${<version_arg>}`.
+# `FROM ${SOURCES_REPO}/<pkg>:${<version_arg>}`.
 # The version this workflow publishes is the ARG default in the
 # Dockerfile (single source of truth); sources.yaml only carries the
 # fetch metadata keyed by version_arg.
@@ -41,6 +41,8 @@ permissions:
   packages: write
 
 env:
+  # Must match the `ARG SOURCES_REPO` default in the Dockerfile: that is
+  # where the build pulls these images back from.
   REPO_PREFIX: ghcr.io/kairos-io/hadron-sources
   REQUIRED_PLATFORMS: linux/amd64 linux/arm64 linux/riscv64
 

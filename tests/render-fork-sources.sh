@@ -112,7 +112,7 @@ if expected not in dockerfile:
 # leaves behind a cache tag an offline rebuild cannot pull.
 leftover = sorted(
     line for line in dockerfile.splitlines()
-    if line.startswith('FROM ghcr.io/kairos-io/hadron-sources/')
+    if line.startswith('FROM ${SOURCES_REPO}/')
 )
 if leftover:
     raise SystemExit(
@@ -187,13 +187,13 @@ dockerfile = Path('Dockerfile').read_text()
 
 if 'FROM sources-downloader-base AS libkcapi-download\n' not in dockerfile:
     raise SystemExit('restricted render did not fetch the selected package from upstream')
-if 'FROM ghcr.io/kairos-io/hadron-sources/libkcapi:' in dockerfile:
+if 'FROM ${SOURCES_REPO}/libkcapi:' in dockerfile:
     raise SystemExit('restricted render still requires the libkcapi cache image')
 
 # Everything not selected keeps its cache image (the FROM line still uses
 # the ${ZLIB_VERSION} placeholder; Docker resolves it from the ARG default
 # at build time).
-if 'FROM ghcr.io/kairos-io/hadron-sources/zlib:${ZLIB_VERSION} AS zlib-download' not in dockerfile:
+if 'FROM ${SOURCES_REPO}/zlib:${ZLIB_VERSION} AS zlib-download' not in dockerfile:
     raise SystemExit('restricted render dropped the cache image of an unselected package')
 
 upstream = [
@@ -216,7 +216,7 @@ if grep -q '^FROM sources-downloader-base AS libkcapi-download$' Dockerfile; the
     echo 'empty package list still fetched a package from upstream' >&2
     exit 1
 fi
-grep -q '^FROM ghcr.io/kairos-io/hadron-sources/libkcapi:\${LIBKCAPI_VERSION} AS libkcapi-download$' Dockerfile
+grep -q '^FROM \${SOURCES_REPO}/libkcapi:\${LIBKCAPI_VERSION} AS libkcapi-download$' Dockerfile
 
 # A name that is not in sources.yaml is a typo, not a package to skip.
 if render 'libkcapi no-such-package' 2>/dev/null; then
@@ -229,10 +229,10 @@ fi
 # committed Dockerfile. Verify the file we ship still has the cache FROM
 # line intact.
 cp "$snapshot" Dockerfile
-grep -q '^FROM ghcr.io/kairos-io/hadron-sources/libkcapi:\${LIBKCAPI_VERSION} AS libkcapi-download$' Dockerfile
+grep -q '^FROM \${SOURCES_REPO}/libkcapi:\${LIBKCAPI_VERSION} AS libkcapi-download$' Dockerfile
 
 # --- Global-ARG invariant -----------------------------------------------------
-# Every ${X_VERSION} that shows up in a `FROM ghcr.io/.../pkg:${X_VERSION}` tag
+# Every ${X_VERSION} that shows up in a `FROM ${SOURCES_REPO}/pkg:${X_VERSION}` tag
 # has to be declared as a global ARG (before the first FROM). Docker only
 # interpolates globally-scoped ARGs into FROM lines; a stage-local ARG would
 # expand to the empty string and the trusted build would pull an unpinned
@@ -251,7 +251,7 @@ globals_ = {m.group(1) for m in re.finditer(r'(?m)^ARG ([A-Z0-9_]+)(?:=|$)', hea
 
 missing = []
 for line in src.splitlines():
-    if not line.startswith('FROM ghcr.io/kairos-io/hadron-sources/'):
+    if not line.startswith('FROM ${SOURCES_REPO}/'):
         continue
     for name in re.findall(r'\$\{([A-Z0-9_]+)\}', line):
         if name not in globals_:

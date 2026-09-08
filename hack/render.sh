@@ -1,7 +1,7 @@
 #!/bin/sh
-# Fork-PR helper: rewrite `FROM ghcr.io/kairos-io/hadron-sources/...`
-# lines in the Dockerfile in place, replacing them with checksum-verifying
-# upstream download stages. Only fork pull requests need this because they
+# Fork-PR helper: rewrite `FROM ${SOURCES_REPO}/...` lines in the
+# Dockerfile in place, replacing them with checksum-verifying upstream
+# download stages. Only fork pull requests need this because they
 # cannot publish to the source cache, so any version they bump has no
 # published tag to pull. Trusted builds skip this script entirely and
 # `docker build .` off the committed Dockerfile.
@@ -70,7 +70,7 @@ for name, value in arg_re.findall(dockerfile):
     arg_defaults[name] = value
 
 pattern = re.compile(
-    r'^FROM ghcr\.io/kairos-io/hadron-sources/'
+    r'^FROM \$\{SOURCES_REPO\}/'
     # The libnetfilter_* packages carry underscores, in the package name
     # and in the stage name both.
     r'(?P<pkg>[a-z0-9_-]+):[^ ]+ AS (?P<stage>[a-z0-9_-]+)$',

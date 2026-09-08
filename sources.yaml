@@ -1,17 +1,18 @@
 # Fetch metadata for the per-package source cache.
 #
 # Each top-level key under `packages` becomes an OCI image at
-# ghcr.io/kairos-io/hadron-sources/<name> tagged with the version
-# pinned in the Dockerfile as `ARG <version_arg>=<version>`. The
-# populate-sources workflow reads that ARG default, fetches the
+# ${SOURCES_REPO}/<name>, where SOURCES_REPO defaults to
+# ghcr.io/kairos-io/hadron-sources, tagged with the version pinned in
+# the Dockerfile as `ARG <version_arg>=<version>`. The populate-sources
+# workflow reads that ARG default, fetches the
 # tarball from `url` (or the first working entry in `urls`), verifies
 # its `sha256`, and publishes a scratch image containing
 # /sources/downloads/<filename>. Consumers in the Dockerfile do
 #
-#   FROM ghcr.io/kairos-io/hadron-sources/<name>:${<version_arg>} AS <name>-download
+#   FROM ${SOURCES_REPO}/<name>:${<version_arg>} AS <name>-download
 #
-# and Docker interpolates ${<version_arg>} from the ARG default at
-# build time.
+# and Docker interpolates both ${SOURCES_REPO} and ${<version_arg>} from
+# their ARG defaults at build time.
 #
 # The Dockerfile is the single source of truth for the versions this
 # project builds against. This file carries only the fetch metadata

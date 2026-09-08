@@ -117,7 +117,7 @@ cat > "$WORK3/Dockerfile" <<'EOF'
 ARG SBAT_DISTRO_VERSION=1
 ARG MUSSEL_VERSION="abc123"
 ARG BASH_VERSION=5.3
-FROM ghcr.io/kairos-io/hadron-sources/linux:7.1.7 AS linux
+FROM ${SOURCES_REPO}/linux:7.1.7 AS linux
 EOF
 
 if HADRON_ROOT="$WORK3" "$GEN" --ref worktree --name thin --out-dir "$WORK3" \

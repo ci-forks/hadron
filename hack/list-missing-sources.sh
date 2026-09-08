@@ -17,8 +17,14 @@ set -eu
 repo_root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$repo_root"
 
-# Same repository layout the cache FROM lines in Dockerfile use.
-registry=${HADRON_SOURCES_REGISTRY:-ghcr.io/kairos-io/hadron-sources}
+# The cache repository is the `ARG SOURCES_REPO` default in the committed
+# Dockerfile, so this probe and the cache FROM lines cannot drift apart.
+# HADRON_SOURCES_REGISTRY overrides it to probe a mirror instead.
+registry=${HADRON_SOURCES_REGISTRY:-$(awk -F= '/^ARG SOURCES_REPO=/ {print $2; exit}' Dockerfile)}
+if [ -z "$registry" ]; then
+    echo "error: no ARG SOURCES_REPO= default in Dockerfile" >&2
+    exit 1
+fi
 registry_host=${registry%%/*}
 registry_path=${registry#*/}
 
