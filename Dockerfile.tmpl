@@ -14,7 +14,8 @@ ARG SBAT_DISTRO_VERSION=1
 ARG JOBS=16
 ## Optional load cap passed to make -l. Empty by default: the flag is omitted
 ## entirely rather than passed bare, because GNU make reads a bare -l as
-## *removing* any load limit. Set --build-arg MAX_LOAD=32 to cap.
+## *removing* any load limit. Set `make build-hadron MAX_LOAD=32` to cap, or
+## --build-arg MAX_LOAD=32 on a direct docker build.
 ARG MAX_LOAD=
 ARG FIPS="no-fips"
 ARG TARGETARCH
