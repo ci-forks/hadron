@@ -71,6 +71,14 @@ packages:
       - http://download-mirror.savannah.nongnu.org/releases/attr/attr-${version}.tar.gz
     filename: attr.tar.gz
 
+  audit:
+    version: "4.2.1"
+    version_arg: AUDIT_VERSION
+    sha256: 42876d195ee2ded19e5f72d7664096eee314928aa36ad346719ba5b25818fc84
+    urls:
+      - https://github.com/linux-audit/audit-userspace/archive/refs/tags/v${version}.tar.gz
+    filename: audit.tar.gz
+
   autoconf:
     version: "2.73"
     version_arg: AUTOCONF_VERSION

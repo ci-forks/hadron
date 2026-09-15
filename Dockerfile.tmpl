@@ -121,6 +121,7 @@ FROM ghcr.io/kairos-io/hadron-sources/lz4:${LZ4_VERSION} AS lz4-download
 FROM ghcr.io/kairos-io/hadron-sources/zlib:${ZLIB_VERSION} AS zlib-download
 FROM ghcr.io/kairos-io/hadron-sources/acl:${ACL_VERSION} AS acl-download
 FROM ghcr.io/kairos-io/hadron-sources/attr:${ATTR_VERSION} AS attr-download
+FROM ghcr.io/kairos-io/hadron-sources/audit:${AUDIT_VERSION} AS audit-download
 FROM ghcr.io/kairos-io/hadron-sources/gawk:${GAWK_VERSION} AS gawk-download
 FROM ghcr.io/kairos-io/hadron-sources/ca-certificates:${CA_CERTIFICATES_VERSION} AS ca-certificates-download
 FROM ghcr.io/kairos-io/hadron-sources/systemd:${SYSTEMD_VERSION} AS systemd-download
@@ -257,6 +258,7 @@ COPY --from=lz4-download /sources/downloads/lz4.tar.gz /sources/downloads/
 COPY --from=zlib-download /sources/downloads/zlib.tar.gz /sources/downloads/
 COPY --from=acl-download /sources/downloads/acl.tar.gz /sources/downloads/
 COPY --from=attr-download /sources/downloads/attr.tar.gz /sources/downloads/
+COPY --from=audit-download /sources/downloads/audit.tar.gz /sources/downloads/
 COPY --from=gawk-download /sources/downloads/gawk.tar.xz /sources/downloads/
 COPY --from=ca-certificates-download /sources/downloads/ca-certificates.tar.bz2 /sources/downloads/
 COPY --from=systemd-download /sources/downloads/systemd.tar.gz /sources/downloads/
@@ -2735,6 +2737,54 @@ RUN rm -f \
       /nfs-utils/sbin/rpc.idmapd \
       /nfs-utils/sbin/rpcctl
 
+FROM rsync AS audit
+ARG JOBS
+ARG MAX_LOAD
+COPY --from=autoconf /autoconf/ /
+COPY --from=automake /automake/ /
+COPY --from=libtool /libtool/ /
+COPY --from=m4 /m4/ /
+COPY --from=perl /perl/ /
+COPY --from=pkgconfig /pkgconfig/ /
+COPY --from=sources-downloader /sources/downloads/audit.tar.gz /sources/
+COPY patches/0001-audit-syslog-plugin-include-unistd.patch /sources/
+RUN mkdir -p /audit
+WORKDIR /sources
+RUN tar -xf audit.tar.gz && mv audit-userspace-* audit
+WORKDIR /sources/audit
+RUN patch -p1 < /sources/0001-audit-syslog-plugin-include-unistd.patch
+RUN autoreconf -fi
+RUN ./configure ${COMMON_CONFIGURE_ARGS} \
+    --prefix=/usr \
+    --sbindir=/sbin \
+    --libdir=/usr/lib \
+    --sysconfdir=/etc \
+    --localstatedir=/var \
+    --runstatedir=/run \
+    --disable-dependency-tracking \
+    --disable-zos-remote \
+    --disable-listener \
+    --disable-gssapi-krb5 \
+    --disable-legacy-actions \
+    --without-python3 \
+    --without-golang \
+    --without-libcap-ng \
+    --without-io_uring \
+    --without-apparmor \
+    ## Keep 32-bit ARM table enabled: CIS Section 4 rules are shipped as
+    ## arch=b64/arch=b32 pairs, and on aarch64 arch=b32 resolves to
+    ## AUDIT_ARCH_ARM at userspace rule-parse time.
+    --with-arm \
+    --with-aarch64 \
+    --with-riscv
+RUN make -s -j${JOBS} ${MAX_LOAD:+-l${MAX_LOAD}}
+RUN make -s -j${JOBS} ${MAX_LOAD:+-l${MAX_LOAD}} DESTDIR=/audit install
+RUN mkdir -p /audit/etc/audit/rules.d
+RUN install -d -m 0700 /audit/var/log/audit
+## Drop upstream example rule templates and audit aclocal macros.
+RUN rm -rf /audit/usr/share/audit-rules \
+ && rm -f /audit/usr/share/aclocal/*audit*.m4
+
 ## No need to have systemd support, systemd-cryptsetup picks cryptsetup directly
 FROM rsync AS cryptsetup
 ARG JOBS
@@ -3932,6 +3982,8 @@ COPY --from=xz /xz/ /skeleton/
 COPY --from=tpm2-tss /tpm2-tss/ /skeleton/
 
 COPY --from=libcap /libcap/ /skeleton/
+
+COPY --from=audit /audit/ /skeleton/
 
 ## Real `less`, replacing the busybox applet — see kairos-io/kairos#3815.
 ## libtinfo and its terminfo entries come along because less links them;
