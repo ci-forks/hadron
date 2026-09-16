@@ -249,17 +249,34 @@ jobs:
             type=registry,ref=quay.io/kairos/hadron-build-cache:toolchain-amd64,mode=max
             type=registry,ref=quay.io/kairos/hadron-build-cache:container-amd64,mode=max
       - name: Install Go
+        id: install-go
         uses: actions/setup-go@v7
         # These workers cap at 100Mb/s, so a congested one turns the ~305MB
         # dependency cache restore into a crawl. Across 91 healthy runs of
         # this step the median is 17s and the slowest 52s, then it jumps to
-        # 277s and 300s: a worker that cannot manage a minute here is not
-        # going to manage the image pulls later either. Fail it fast rather
-        # than burn five minutes first (kairos-io/kairos#4564).
+        # 277s and 300s, so two minutes is a generous cap on a healthy
+        # restore (kairos-io/kairos#4564).
+        #
+        # Hitting the cap is not a reason to fail the leg, though: the step
+        # below installs Go without the cache, so a congested worker costs
+        # this job a module download instead of a red check and, through
+        # fail-fast, its sibling legs.
         timeout-minutes: 2
+        continue-on-error: true
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
+      - name: Install Go without the dependency cache
+        # Only reached when the restore above timed out. It repeats the
+        # toolchain half, which is a hostedtoolcache lookup and costs
+        # seconds, and skips the cache that was the problem. A genuinely
+        # broken go-version-file still fails here, so continue-on-error
+        # above hides nothing.
+        if: steps.install-go.outcome == 'failure'
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: tests/go.mod
+          cache: false
       - name: Run image-structure tests
         env:
           # Image was loaded locally by the build step above (no push needed).
@@ -342,17 +359,34 @@ jobs:
             ARCH=aarch64
             BUILD_ARCH=aarch64
       - name: Install Go
+        id: install-go
         uses: actions/setup-go@v7
         # These workers cap at 100Mb/s, so a congested one turns the ~305MB
         # dependency cache restore into a crawl. Across 91 healthy runs of
         # this step the median is 17s and the slowest 52s, then it jumps to
-        # 277s and 300s: a worker that cannot manage a minute here is not
-        # going to manage the image pulls later either. Fail it fast rather
-        # than burn five minutes first (kairos-io/kairos#4564).
+        # 277s and 300s, so two minutes is a generous cap on a healthy
+        # restore (kairos-io/kairos#4564).
+        #
+        # Hitting the cap is not a reason to fail the leg, though: the step
+        # below installs Go without the cache, so a congested worker costs
+        # this job a module download instead of a red check and, through
+        # fail-fast, its sibling legs.
         timeout-minutes: 2
+        continue-on-error: true
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
+      - name: Install Go without the dependency cache
+        # Only reached when the restore above timed out. It repeats the
+        # toolchain half, which is a hostedtoolcache lookup and costs
+        # seconds, and skips the cache that was the problem. A genuinely
+        # broken go-version-file still fails here, so continue-on-error
+        # above hides nothing.
+        if: steps.install-go.outcome == 'failure'
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: tests/go.mod
+          cache: false
       - name: Run image-structure tests
         env:
           # Image was loaded locally by the build step above (no push needed).
@@ -431,17 +465,34 @@ jobs:
             KERNEL_TYPE=${{ matrix.kernel }}
             FIPS=${{ matrix.fips }}
       - name: Install Go
+        id: install-go
         uses: actions/setup-go@v7
         # These workers cap at 100Mb/s, so a congested one turns the ~305MB
         # dependency cache restore into a crawl. Across 91 healthy runs of
         # this step the median is 17s and the slowest 52s, then it jumps to
-        # 277s and 300s: a worker that cannot manage a minute here is not
-        # going to manage the image pulls later either. Fail it fast rather
-        # than burn five minutes first (kairos-io/kairos#4564).
+        # 277s and 300s, so two minutes is a generous cap on a healthy
+        # restore (kairos-io/kairos#4564).
+        #
+        # Hitting the cap is not a reason to fail the leg, though: the step
+        # below installs Go without the cache, so a congested worker costs
+        # this job a module download instead of a red check and, through
+        # fail-fast, its sibling legs.
         timeout-minutes: 2
+        continue-on-error: true
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
+      - name: Install Go without the dependency cache
+        # Only reached when the restore above timed out. It repeats the
+        # toolchain half, which is a hostedtoolcache lookup and costs
+        # seconds, and skips the cache that was the problem. A genuinely
+        # broken go-version-file still fails here, so continue-on-error
+        # above hides nothing.
+        if: steps.install-go.outcome == 'failure'
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: tests/go.mod
+          cache: false
       - name: Run full-image structure tests
         env:
           # container-amd64 structure-tests the minimal base. The firmware
@@ -810,17 +861,34 @@ jobs:
         with:
           fetch-depth: 0
       - name: Install Go
+        id: install-go
         uses: actions/setup-go@v7
         # These workers cap at 100Mb/s, so a congested one turns the ~305MB
         # dependency cache restore into a crawl. Across 91 healthy runs of
         # this step the median is 17s and the slowest 52s, then it jumps to
-        # 277s and 300s: a worker that cannot manage a minute here is not
-        # going to manage the image pulls later either. Fail it fast rather
-        # than burn five minutes first (kairos-io/kairos#4564).
+        # 277s and 300s, so two minutes is a generous cap on a healthy
+        # restore (kairos-io/kairos#4564).
+        #
+        # Hitting the cap is not a reason to fail the leg, though: the step
+        # below installs Go without the cache, so a congested worker costs
+        # this job a module download instead of a red check and, through
+        # fail-fast, its sibling legs.
         timeout-minutes: 2
+        continue-on-error: true
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
+      - name: Install Go without the dependency cache
+        # Only reached when the restore above timed out. It repeats the
+        # toolchain half, which is a hostedtoolcache lookup and costs
+        # seconds, and skips the cache that was the problem. A genuinely
+        # broken go-version-file still fails here, so continue-on-error
+        # above hides nothing.
+        if: steps.install-go.outcome == 'failure'
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: tests/go.mod
+          cache: false
       - name: Download artifacts
         uses: actions/download-artifact@v8
         with:
@@ -866,17 +934,34 @@ jobs:
         with:
           fetch-depth: 0
       - name: Install Go
+        id: install-go
         uses: actions/setup-go@v7
         # These workers cap at 100Mb/s, so a congested one turns the ~305MB
         # dependency cache restore into a crawl. Across 91 healthy runs of
         # this step the median is 17s and the slowest 52s, then it jumps to
-        # 277s and 300s: a worker that cannot manage a minute here is not
-        # going to manage the image pulls later either. Fail it fast rather
-        # than burn five minutes first (kairos-io/kairos#4564).
+        # 277s and 300s, so two minutes is a generous cap on a healthy
+        # restore (kairos-io/kairos#4564).
+        #
+        # Hitting the cap is not a reason to fail the leg, though: the step
+        # below installs Go without the cache, so a congested worker costs
+        # this job a module download instead of a red check and, through
+        # fail-fast, its sibling legs.
         timeout-minutes: 2
+        continue-on-error: true
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
+      - name: Install Go without the dependency cache
+        # Only reached when the restore above timed out. It repeats the
+        # toolchain half, which is a hostedtoolcache lookup and costs
+        # seconds, and skips the cache that was the problem. A genuinely
+        # broken go-version-file still fails here, so continue-on-error
+        # above hides nothing.
+        if: steps.install-go.outcome == 'failure'
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: tests/go.mod
+          cache: false
       - name: Download artifacts
         uses: actions/download-artifact@v8
         with:
@@ -926,17 +1011,34 @@ jobs:
         with:
           fetch-depth: 0
       - name: Install Go
+        id: install-go
         uses: actions/setup-go@v7
         # These workers cap at 100Mb/s, so a congested one turns the ~305MB
         # dependency cache restore into a crawl. Across 91 healthy runs of
         # this step the median is 17s and the slowest 52s, then it jumps to
-        # 277s and 300s: a worker that cannot manage a minute here is not
-        # going to manage the image pulls later either. Fail it fast rather
-        # than burn five minutes first (kairos-io/kairos#4564).
+        # 277s and 300s, so two minutes is a generous cap on a healthy
+        # restore (kairos-io/kairos#4564).
+        #
+        # Hitting the cap is not a reason to fail the leg, though: the step
+        # below installs Go without the cache, so a congested worker costs
+        # this job a module download instead of a red check and, through
+        # fail-fast, its sibling legs.
         timeout-minutes: 2
+        continue-on-error: true
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
+      - name: Install Go without the dependency cache
+        # Only reached when the restore above timed out. It repeats the
+        # toolchain half, which is a hostedtoolcache lookup and costs
+        # seconds, and skips the cache that was the problem. A genuinely
+        # broken go-version-file still fails here, so continue-on-error
+        # above hides nothing.
+        if: steps.install-go.outcome == 'failure'
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: tests/go.mod
+          cache: false
       - name: Download artifacts
         uses: actions/download-artifact@v8
         with:
