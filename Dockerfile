@@ -54,7 +54,7 @@ ARG BUSYBOX_VERSION=1.38.0
 ARG CA_CERTIFICATES_VERSION=20260611
 ARG CMAKE_VERSION=4.4.2
 ARG CONNTRACK_TOOLS_VERSION=1.4.9
-ARG COREUTILS_VERSION=9.11
+ARG COREUTILS_VERSION=9.12
 ARG CRYPTSETUP_VERSION=2.8.7
 ARG CURL_VERSION=8.21.0
 ARG DBUS_VERSION=1.16.2
@@ -141,10 +141,10 @@ ARG SHIM_VERSION=16.1
 ARG SQLITE3_VERSION=3.53.4
 ARG STRACE_VERSION=7.1
 ARG SUDO_VERSION=1.9.17p2
-ARG SYSTEMD_VERSION=261.2
+ARG SYSTEMD_VERSION=261.3
 ARG TPM2_TSS_VERSION=4.2.0
 ARG URCU_VERSION=0.15.6
-ARG UTIL_LINUX_VERSION=2.42.2
+ARG UTIL_LINUX_VERSION=2.42.3
 ARG XXHASH_VERSION=0.8.3
 ARG XZUTILS_VERSION=5.8.3
 ARG ZLIB_VERSION=1.3.2
@@ -339,7 +339,7 @@ FROM sources-downloader-base AS bash-download
 ARG BASH_VERSION=5.3
 # Patch level is the number of patches upstream bash has released for this version https://ftp.gnu.org/gnu/bash/bash-${BASH_VERSION}-patches/
 # It is bumped separately from BASH_VERSION by updatecli.d/core-system.yaml
-ARG PATCH_LEVEL=15
+ARG PATCH_LEVEL=20
 # Get the patches from https://ftp.gnu.org/gnu/bash/bash-${BASH_VERSION}-patches/
 # They are in the format bash$BASH_VERSION_NO_DOT-NNN where NNN is a 3-digit zero-padded index
 # starting at 001.
