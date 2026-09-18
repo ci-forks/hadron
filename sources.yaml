@@ -169,7 +169,7 @@ packages:
 
   curl:
     version_arg: CURL_VERSION
-    sha256: d9b327997999045a24cda50f3983e69e51c516bd8be6ef9842fc7f99135e33bb
+    sha256: d54dd598bf05927a726deb38df31c6a255ba83ff1de57c5d1464dac3ed8f44a1
     urls:
       - https://curl.se/download/curl-${version}.tar.gz
     filename: curl.tar.gz
@@ -774,7 +774,7 @@ packages:
 
   rsync:
     version_arg: RSYNC_VERSION
-    sha256: bd88cf82fa653da32314fb229136407c5c90f80d1758d8f4b091767877d8fa96
+    sha256: c7ffd1ef653e99540f661e47cb00b7f9cad1ee6b972399b16f93d672656e0d33
     urls:
       - https://github.com/RsyncProject/rsync/releases/download/v${version}/rsync-${version}.tar.gz
     filename: rsync.tar.gz
