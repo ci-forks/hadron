@@ -656,7 +656,7 @@ packages:
 
   openscsi:
     version_arg: OPEN_SCSI_VERSION
-    sha256: e2441b61e4b05cd5f0f94b35dcdf460e8d542e40d71b480882628170d6462d9a
+    sha256: 1c3a8ad7d86e57d247a08c013f5055ef695b3a07ed760d1aea7d90b9f9011602
     urls:
       - https://github.com/open-iscsi/open-iscsi/archive/refs/tags/${version}.tar.gz
     filename: openscsi.tar.gz
@@ -802,7 +802,7 @@ packages:
 
   strace:
     version_arg: STRACE_VERSION
-    sha256: 81743ecf2a5b44186b2f5038afdc8beda7e5c70aed15b4fbfbcc6e9ece24490f
+    sha256: 4bde6246926890dcee824f6e6ac42a06752f47d77e5097d86e3c0d6d4b709fe5
     urls:
       - https://strace.io/files/${version}/strace-${version}.tar.xz
     filename: strace.tar.xz
