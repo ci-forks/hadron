@@ -1443,8 +1443,10 @@ RUN make -s -j${JOBS} ${MAX_LOAD:+-l${MAX_LOAD}} install 2>&1
 FROM bash AS util-linux
 WORKDIR /sources
 COPY --from=sources-downloader /sources/downloads/util-linux.tar.xz /sources/
+COPY patches/0001-libmount-add-missing-fileutils.h-include.patch /sources/
 RUN tar -xf util-linux.tar.xz && mv util-linux-* util-linux
 WORKDIR /sources/util-linux
+RUN patch -p1 < /sources/0001-libmount-add-missing-fileutils.h-include.patch
 RUN ./configure ${COMMON_CONFIGURE_ARGS} --disable-dependency-tracking  --prefix=/usr \
     --libdir=/usr/lib \
     --disable-silent-rules \

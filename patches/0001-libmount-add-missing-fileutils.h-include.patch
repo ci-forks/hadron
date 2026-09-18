@@ -1,0 +1,29 @@
+libmount: add missing fileutils.h include to hook_idmap.c
+
+util-linux 2.42.3 backported the openat2() hardening for CVE-2026-78410,
+which makes hook_idmap.c use RESOLVE_NO_SYMLINKS, but it did not backport
+the follow-up that adds the include providing the fallback #define for
+that constant. The fallback lives in include/fileutils.h, and
+hook_idmap.c does not include it, so the build fails with
+
+  libmount/src/hook_idmap.c: In function 'hook_mount_post':
+  libmount/src/hook_idmap.c:335:33: error: 'RESOLVE_NO_SYMLINKS' undeclared
+
+glibc 2.40+ masks this because its <bits/fcntl-linux.h> transitively
+includes <linux/openat2.h>. musl does not, so hadron hits it on both
+amd64 and arm64.
+
+Fixed upstream by 7e2e01087 ("libmount: add missing fileutils.h include
+to hook_idmap.c"), which is on master but not in the 2.42 stable branch.
+Drop this patch once a 2.42.x release carries it.
+
+--- a/libmount/src/hook_idmap.c
++++ b/libmount/src/hook_idmap.c
+@@ -23,6 +23,7 @@
+ 
+ #include "strutils.h"
+ #include "all-io.h"
++#include "fileutils.h"
+ #include "namespace.h"
+ 
+ #include "mountP.h"
