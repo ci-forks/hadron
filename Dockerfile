@@ -779,9 +779,6 @@ RUN rsync -aHAX --keep-dirlinks /make/. /skeleton/
 COPY --from=binutils-stage0 /sysroot /binutils
 RUN rsync -aHAX --keep-dirlinks /binutils/. /skeleton/
 
-COPY --from=kernel-headers-stage0 /linux-headers /linux-headers
-RUN rsync -aHAX --keep-dirlinks  /linux-headers/. /skeleton/usr/
-
 # Provide ldconfig in the image
 COPY --from=sources-downloader /sources/downloads/aports.tar.gz /aports/aports.tar.gz
 WORKDIR /aports
@@ -814,6 +811,8 @@ ENV LDFLAGS="-Wl,--gc-sections -Wl,--as-needed -flto=auto"
 # TODO: we should set -march=x86-64-v2 to avoid compiling for old CPUs. Save space and its faster.
 
 COPY --from=stage1-merge /skeleton /
+RUN --mount=type=bind,from=kernel-headers-stage0,source=/linux-headers,target=/khdr \
+    cp -a /khdr/. /usr/
 
 
 # This environment now should be vanilla, ready to build the rest of the system
