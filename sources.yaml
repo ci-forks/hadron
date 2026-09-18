@@ -390,7 +390,7 @@ packages:
 
   libelf:
     version_arg: LIBELF_VERSION
-    sha256: 7230aa671c991ab2576b9a7735b3bf6256185b0a23d3bb3fc1d44dd740a81343
+    sha256: 1e839a9926a90430e4302300168741719ae8ce096109e903e31ed8fce18a7517
     urls:
       - https://github.com/arachsys/libelf/archive/refs/tags/v${version}.tar.gz
     filename: libelf.tar.gz
@@ -513,7 +513,7 @@ packages:
 
   libxml2:
     version_arg: LIBXML2_VERSION
-    sha256: 78262a6e7ac170d6528ebfe2efccdf220191a5af6a6cd61ea4a9a9a5042c7a07
+    sha256: 98087fd181d9070724f3fbc65c7377db03038eb92bd882374daff44940138821
     urls:
       - https://download.gnome.org/sources/libxml2/2.15/libxml2-${version}.tar.xz
     filename: libxml2.tar.xz
@@ -716,7 +716,7 @@ packages:
 
   pcre2:
     version_arg: PCRE2_VERSION
-    sha256: c08ae2388ef333e8403e670ad70c0a11f1eed021fd88308d7e02f596fcd9dc16
+    sha256: ebcc25aadf2a51fa1fefa9b8bc9e7a79b3dae86870a0f1152a22e42befd46888
     urls:
       - https://github.com/PCRE2Project/pcre2/releases/download/pcre2-${version}/pcre2-${version}.tar.gz
     filename: pcre2.tar.gz
