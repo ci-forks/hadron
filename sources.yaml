@@ -490,7 +490,7 @@ packages:
 
   libtirpc:
     version_arg: LIBTIRPC_VERSION
-    sha256: b47d3ac19d3549e54a05d0019a6c400674da716123858cfdb6d3bdd70a66c702
+    sha256: 8839959bfcc7a0f4c609d8e4f53f1c67ae33de23775ec35beb39ff15adf11920
     urls:
       - https://downloads.sourceforge.net/project/libtirpc/libtirpc/${version}/libtirpc-${version}.tar.bz2
     filename: libtirpc.tar.bz2
@@ -584,7 +584,7 @@ packages:
 
   multipath-tools:
     version_arg: MULTIPATH_TOOLS_VERSION
-    sha256: 23e8500f7d12f1fbc571aafbcdaa4a07e9a1ec46920078ce92882ca6d71d45c7
+    sha256: 99e4a4b8c245479dd5c5d473a031acb67d752b94dcd76be172279cd445845421
     urls:
       - https://github.com/opensvc/multipath-tools/archive/refs/tags/${version}.tar.gz
     filename: multipath-tools.tar.gz
@@ -830,7 +830,7 @@ packages:
 
   urcu:
     version_arg: URCU_VERSION
-    sha256: 850b192096eb11ebf2c70e8f97bc7da7479ee41da1bebeb44e3986908bac414f
+    sha256: 2556b83adc0f9b3ac8024e613e17d014d04c4c49110604ce55fcb14eae32edd3
     urls:
       - https://lttng.org/files/urcu/userspace-rcu-${version}.tar.bz2
     filename: urcu.tar.bz2
