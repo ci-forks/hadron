@@ -206,7 +206,7 @@ packages:
 
   dwarves:
     version_arg: DWARVES_VERSION
-    sha256: 2b6511691bda2b3ae328987092902d30fd073ef7c8754894f4a69271a66686f2
+    sha256: 34314c33a3c86524f2bc0c60b72b94bc4fac4a880648349813282afe6006002b
     urls:
       - https://github.com/acmel/dwarves/archive/refs/tags/v${version}.tar.gz
     filename: dwarves.tar.gz
@@ -520,7 +520,7 @@ packages:
 
   linux:
     version_arg: KERNEL_VERSION
-    sha256: ff01dcb449279d5b4cfccdb01fee639cf5ff1803f1749a77844dd33915422c49
+    sha256: 039aef84f2b0994aeda3f4fcfc3d02ec9d7a9bbb9020ea264c43f446c860f606
     urls:
       - https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-${version}.tar.xz
     filename: linux.tar.xz
