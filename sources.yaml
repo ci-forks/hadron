@@ -162,7 +162,7 @@ packages:
 
   cryptsetup:
     version_arg: CRYPTSETUP_VERSION
-    sha256: e776f0d381e86ca61042c457069491fe8e0ac286780c7c3b1e4f9921abc961da
+    sha256: 3acfa685f2dd7fcc832e0b77bc7093aa7da554a51ce8dafbb4138eaa854eee35
     urls:
       - https://cdn.kernel.org/pub/linux/utils/cryptsetup/v2.8/cryptsetup-${version}.tar.xz
     filename: cryptsetup.tar.xz
@@ -663,14 +663,14 @@ packages:
 
   openssh:
     version_arg: OPENSSH_VERSION
-    sha256: ef6026dd2aea8d56059638d5d3262902c892ceba9f88395835e0d06d3fb63238
+    sha256: d44d28a839ea9daf969cc69150fde59910b2b39361dad81a3bd6cbd19218db11
     urls:
       - https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-${version}.tar.gz
     filename: openssh.tar.gz
 
   openssl:
     version_arg: OPENSSL_VERSION
-    sha256: 243a86649cf6f23eeb6a2ff2456e09e5d77dd9018a54d3d96b0c6bdd6ba6c7f1
+    sha256: 9bffaa1ad1e07b354c21bd3324ec02fa15579f45a7d0494b3e74bc449b7333ef
     urls:
       - https://www.openssl.org/source/openssl-${version}.tar.gz
     filename: openssl.tar.gz
