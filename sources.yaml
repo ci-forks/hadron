@@ -153,7 +153,7 @@ packages:
 
   coreutils:
     version_arg: COREUTILS_VERSION
-    sha256: 394024eda0a5955217ceda9cd1201e65dc8fa3aa29c2951135a49521d57c3cc3
+    sha256: a480198559733e9b3da999e90543ac6f888a2caa544d8d664c5a1f17e528e210
     urls:
       - https://ftpmirror.gnu.org/coreutils/coreutils-${version}.tar.xz
       - https://ftp.gnu.org/gnu/coreutils/coreutils-${version}.tar.xz
@@ -816,7 +816,7 @@ packages:
 
   systemd:
     version_arg: SYSTEMD_VERSION
-    sha256: ed1059ff964f5df35b6056434cc17cc83f86dc913f10489948a0b19b6081c5ec
+    sha256: 3f8d3d3969af7214bda600930e14c6a24135eb3dce1ba7f1b980b74e6dc15b72
     urls:
       - https://github.com/systemd/systemd/archive/refs/tags/v${version}.tar.gz
     filename: systemd.tar.gz
@@ -837,7 +837,7 @@ packages:
 
   util-linux:
     version_arg: UTIL_LINUX_VERSION
-    sha256: 03a05d3adf9602ef128f2da05b84b3205ce60c351e5737c0370f74000679ce8a
+    sha256: 66ac7c0e725278eb2b039e3104f2c91119341d941b41bac7a285c695f940bd57
     urls:
       - https://www.kernel.org/pub/linux/utils/util-linux/v2.42/util-linux-${version}.tar.xz
     filename: util-linux.tar.xz
