@@ -135,7 +135,7 @@ ARG PROCPS_NG_VERSION=4.0.6
 ARG PYTHON_VERSION=3.14.7
 ARG QEMU_AGENT_VERSION=10.1.5
 ARG READLINE_VERSION=8.3
-ARG RSYNC_VERSION=3.5.0
+ARG RSYNC_VERSION=3.5.1
 ARG SHADOW_VERSION=4.20.2
 ARG SHIM_VERSION=16.1
 ARG SQLITE3_VERSION=3.53.4
@@ -1002,6 +1002,7 @@ RUN mkdir -p /sources && cd /sources && tar -xf rsync.tar.gz && mv rsync-* rsync
     --without-included-zlib \
     --disable-md2man \
     --disable-nls \
+    --disable-idn \
     --disable-openssl && make -s -j${JOBS} ${MAX_LOAD:+-l${MAX_LOAD}} DESTDIR=/rsync && \
     make -s -j${JOBS} ${MAX_LOAD:+-l${MAX_LOAD}} DESTDIR=/rsync install && make -s -j${JOBS} ${MAX_LOAD:+-l${MAX_LOAD}} install
 
