@@ -473,4 +473,51 @@ var _ = Describe("hadron container image structure", Label("image-structure"), f
 			Expect(out).To(ContainSubstring("OK"))
 		})
 	})
+
+	Describe("PAM password quality and lockout", Label("pam"), func() {
+		BeforeEach(skipUnlessFullImage)
+
+		It("ships pam_pwquality.so for CIS L1 5.4.1", func() {
+			out, code := shInImage(
+				"find /usr/lib/security /lib/security /lib64/security -name pam_pwquality.so 2>/dev/null | head -1")
+			Expect(code).To(Equal(0), out)
+			Expect(strings.TrimSpace(out)).ToNot(BeEmpty(),
+				"pam_pwquality.so missing from PAM module directories: %s", out)
+		})
+
+		It("ships pam_faillock.so for CIS L1 5.4.2", func() {
+			out, code := shInImage(
+				"find /usr/lib/security /lib/security /lib64/security -name pam_faillock.so 2>/dev/null | head -1")
+			Expect(code).To(Equal(0), out)
+			Expect(strings.TrimSpace(out)).ToNot(BeEmpty(),
+				"pam_faillock.so missing from PAM module directories: %s", out)
+		})
+
+		It("ships libpwquality and libcrack shared libraries", func() {
+			out, code := shInImage(
+				"ls /usr/lib/libpwquality.so.* /usr/lib/libcrack.so.* 2>&1")
+			Expect(code).To(Equal(0),
+				"libpwquality/libcrack shared libraries missing: %s", out)
+			Expect(out).To(ContainSubstring("libpwquality.so."))
+			Expect(out).To(ContainSubstring("libcrack.so."))
+		})
+
+		It("wires pam_pwquality into the password stack of system-auth", func() {
+			out, code := shInImage("cat /etc/pam.d/system-auth")
+			Expect(code).To(Equal(0), out)
+			Expect(out).To(MatchRegexp(`(?m)^password\s+\S+\s+pam_pwquality\.so`),
+				"system-auth password stack missing pam_pwquality line: %s", out)
+		})
+
+		It("wires pam_faillock into the auth stack of system-auth", func() {
+			out, code := shInImage("cat /etc/pam.d/system-auth")
+			Expect(code).To(Equal(0), out)
+			Expect(out).To(MatchRegexp(`(?m)^auth\s+\S+\s+pam_faillock\.so\s+preauth`),
+				"system-auth auth stack missing pam_faillock preauth: %s", out)
+			Expect(out).To(MatchRegexp(`(?m)^auth\s+\S+\s+pam_faillock\.so\s+authfail`),
+				"system-auth auth stack missing pam_faillock authfail: %s", out)
+			Expect(out).To(MatchRegexp(`(?m)^auth\s+\S+\s+pam_faillock\.so\s+authsucc`),
+				"system-auth auth stack missing pam_faillock authsucc: %s", out)
+		})
+	})
 })

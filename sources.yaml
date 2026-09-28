@@ -165,6 +165,13 @@ packages:
       - https://mirror.netcologne.de/gnu/coreutils/coreutils-${version}.tar.xz
     filename: coreutils.tar.xz
 
+  cracklib:
+    version_arg: CRACKLIB_VERSION
+    sha256: f3dcb54725d5604523f54a137b378c0427c1a0be3e91cfb8650281a485d10dae
+    urls:
+      - https://github.com/cracklib/cracklib/releases/download/v${version}/cracklib-${version}.tar.bz2
+    filename: cracklib.tar.bz2
+
   cryptsetup:
     version_arg: CRYPTSETUP_VERSION
     sha256: 3acfa685f2dd7fcc832e0b77bc7093aa7da554a51ce8dafbb4138eaa854eee35
@@ -485,6 +492,13 @@ packages:
     urls:
       - https://github.com/thom311/libnl/releases/download/libnl${version_underscore}/libnl-${version}.tar.gz
     filename: libnl.tar.gz
+
+  libpwquality:
+    version_arg: LIBPWQUALITY_VERSION
+    sha256: 6fcf18b75d305d99d04d2e42982ed5b787a081af2842220ed63287a2d6a10988
+    urls:
+      - https://github.com/libpwquality/libpwquality/releases/download/libpwquality-${version}/libpwquality-${version}.tar.bz2
+    filename: libpwquality.tar.bz2
 
   libseccomp:
     version_arg: SECCOMP_VERSION

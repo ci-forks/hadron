@@ -55,6 +55,7 @@ ARG CA_CERTIFICATES_VERSION=20260611
 ARG CMAKE_VERSION=4.4.3
 ARG CONNTRACK_TOOLS_VERSION=1.4.9
 ARG COREUTILS_VERSION=9.12
+ARG CRACKLIB_VERSION=2.10.3
 ARG CRYPTSETUP_VERSION=2.8.8
 ARG CURL_VERSION=8.22.0
 ARG DBUS_VERSION=1.16.2
@@ -98,6 +99,7 @@ ARG LIBNETFILTER_QUEUE_VERSION=1.0.5
 ARG LIBNFNETLINK_VERSION=1.0.2
 ARG LIBNFTNL_VERSION=1.3.2
 ARG LIBNL_VERSION=3.12.0
+ARG LIBPWQUALITY_VERSION=1.4.5
 ARG SECCOMP_VERSION=2.6.1
 ARG LIBTIRPC_VERSION=1.3.8
 ARG LIBTOOL_VERSION=2.5.4
@@ -307,6 +309,8 @@ FROM ${SOURCES_REPO}/nfs-utils:${NFS_UTILS_VERSION} AS nfs-utils-download
 FROM ${SOURCES_REPO}/cryptsetup:${CRYPTSETUP_VERSION} AS cryptsetup-download
 FROM ${SOURCES_REPO}/grub:${GRUB_VERSION} AS grub-download
 FROM ${SOURCES_REPO}/pam:${PAM_VERSION} AS pam-download
+FROM ${SOURCES_REPO}/cracklib:${CRACKLIB_VERSION} AS cracklib-download
+FROM ${SOURCES_REPO}/libpwquality:${LIBPWQUALITY_VERSION} AS libpwquality-download
 FROM ${SOURCES_REPO}/shadow:${SHADOW_VERSION} AS shadow-download
 FROM ${SOURCES_REPO}/aports:${APORTS_VERSION} AS aports-download
 FROM ${SOURCES_REPO}/busybox:${BUSYBOX_VERSION} AS busybox-download
@@ -431,6 +435,8 @@ COPY --from=nfs-utils-download /sources/downloads/nfs-utils.tar.xz /sources/down
 COPY --from=cryptsetup-download /sources/downloads/cryptsetup.tar.xz /sources/downloads/
 COPY --from=grub-download /sources/downloads/grub.tar.xz /sources/downloads/
 COPY --from=pam-download /sources/downloads/pam.tar.xz /sources/downloads/
+COPY --from=cracklib-download /sources/downloads/cracklib.tar.bz2 /sources/downloads/
+COPY --from=libpwquality-download /sources/downloads/libpwquality.tar.bz2 /sources/downloads/
 COPY --from=shadow-download /sources/downloads/shadow.tar.xz /sources/downloads/
 COPY --from=aports-download /sources/downloads/aports.tar.gz /sources/downloads/
 COPY --from=busybox-download /sources/downloads/busybox.tar.bz2 /sources/downloads/
@@ -3454,6 +3460,44 @@ COPY files/pam/* /pam/etc/pam.d/
 COPY files/shells /pam/etc/shells
 RUN chmod 644 /pam/etc/shells
 
+## cracklib supplies the FascistCheck routine libpwquality links against
+## for CIS L1 5.4.1 password quality checks in pam_pwquality. The
+## dictionary is not shipped: without it FascistCheck falls back to the
+## complexity and length checks pwquality.conf already enforces, which
+## is what the benchmark requires. Adding the ~4MB compiled words file
+## would satisfy an optional "dictcheck" that CIS does not mandate.
+FROM rsync AS cracklib
+ARG JOBS
+ARG MAX_LOAD
+COPY --from=zlib /zlib/ /
+COPY --from=sources-downloader /sources/downloads/cracklib.tar.bz2 /sources/
+RUN mkdir -p /cracklib
+WORKDIR /sources
+RUN tar -xf cracklib.tar.bz2 && mv cracklib-* cracklib
+WORKDIR /sources/cracklib
+RUN ./configure ${COMMON_CONFIGURE_ARGS} --prefix=/usr --sysconfdir=/etc --without-python --disable-nls
+RUN make -s -j${JOBS} ${MAX_LOAD:+-l${MAX_LOAD}} && make -s -j${JOBS} ${MAX_LOAD:+-l${MAX_LOAD}} install DESTDIR=/cracklib
+
+## libpwquality supplies pam_pwquality.so, the module CIS L1 5.4.1
+## expects in the password stack. Runtime configuration lives at
+## /etc/security/pwquality.conf; libpwquality ships its own defaults
+## there which a later cloud-config stage may replace. Python bindings
+## are disabled to keep the pwmake helper and swig runtime out of the
+## final image; nothing on Hadron reads pwquality from Python.
+FROM rsync AS libpwquality
+ARG JOBS
+ARG MAX_LOAD
+COPY --from=pkgconfig /pkgconfig/ /
+COPY --from=pam-systemd /pam/ /
+COPY --from=cracklib /cracklib/ /
+COPY --from=sources-downloader /sources/downloads/libpwquality.tar.bz2 /sources/
+RUN mkdir -p /libpwquality
+WORKDIR /sources
+RUN tar -xf libpwquality.tar.bz2 && mv libpwquality-* libpwquality
+WORKDIR /sources/libpwquality
+RUN ./configure ${COMMON_CONFIGURE_ARGS} --prefix=/usr --sysconfdir=/etc --libdir=/usr/lib --disable-python-bindings --disable-nls
+RUN make -s -j${JOBS} ${MAX_LOAD:+-l${MAX_LOAD}} && make -s -j${JOBS} ${MAX_LOAD:+-l${MAX_LOAD}} install DESTDIR=/libpwquality
+
 # Shadow with systemd support via PAM
 FROM shadow-base AS shadow-systemd
 ARG JOBS
@@ -3764,6 +3808,8 @@ COPY --from=perl /perl/ /merge/
 COPY --from=libcap /libcap /libcap
 RUN rsync -aHAX --keep-dirlinks  /libcap/. /merge
 COPY --from=pam-systemd /pam/ /merge/
+COPY --from=cracklib /cracklib/ /merge/
+COPY --from=libpwquality /libpwquality/ /merge/
 COPY --from=pkgconfig /pkgconfig/ /merge/
 COPY --from=readline /readline/ /merge/
 COPY --from=bash /bash /bash
@@ -4118,6 +4164,11 @@ COPY --from=libseccomp /libseccomp/ /skeleton/
 
 # copy pam but with systemd support
 COPY --from=pam-systemd /pam/ /skeleton/
+
+# libpwquality supplies pam_pwquality.so for CIS L1 5.4.1; cracklib is
+# the FascistCheck backend libpwquality links against.
+COPY --from=cracklib /cracklib/ /skeleton/
+COPY --from=libpwquality /libpwquality/ /skeleton/
 
 # copy shadow but with systemd support
 COPY --from=shadow-systemd /shadow/ /skeleton/
