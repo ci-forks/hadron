@@ -37,7 +37,8 @@ accept='application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manif
 
 pinned=$(mktemp)
 raw=$(mktemp)
-trap 'rm -f "$pinned" "$raw"' EXIT
+body=$(mktemp)
+trap 'rm -f "$pinned" "$raw" "$body"' EXIT
 
 # The pinned version for each package is the default of its
 # `ARG <version_arg>=<version>` in the committed Dockerfile
@@ -75,21 +76,58 @@ sort "$raw" > "$pinned"
 # One anonymous pull token covering every package, rather than a token
 # round-trip per package. Registry tokens are scoped, so every package the
 # loop below reads has to be named here.
+# This is one URL that names all 109 packages as scopes, so it is the
+# largest and slowest request the probe makes, and the one most likely to
+# stall. Retry it like the manifest probe below, because a stalled token
+# reached python3 as an empty body and failed the script with a traceback
+# rather than a second attempt.
 request_token() {
     query="service=${registry_host}"
-    while read -r package _; do
-        query="${query}&scope=repository:${registry_path}/${package}:pull"
+    while read -r scope_package _; do
+        query="${query}&scope=repository:${registry_path}/${scope_package}:pull"
     done < "$pinned"
 
-    curl -fsS --max-time 60 "https://${registry_host}/token?${query}" |
-        python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])'
+    token_attempt=1
+    while [ "$token_attempt" -le 3 ]; do
+        # Empty the body first. curl -o leaves the file's prior contents fully
+        # intact when the connection never opens, and can leave a partial body
+        # when it times out mid-transfer, so a failed attempt must not be able
+        # to hand old or truncated bytes to the check below.
+        : > "$body"
+        if curl -fsS --max-time 60 -o "$body" \
+            "https://${registry_host}/token?${query}"; then
+            break
+        fi
+        sleep $((token_attempt * 3))
+        token_attempt=$((token_attempt + 1))
+    done
+
+    # Decide from the loop counter, not from the file: token_attempt only gets
+    # past 3 when no attempt broke out of the loop. $body is shared by every
+    # request_token call, so on the 401 refresh path a file-size check reads
+    # the first call's still-present token as success and prints an expired
+    # token instead of reporting the failure.
+    if [ "$token_attempt" -gt 3 ] || [ ! -s "$body" ]; then
+        echo "error: could not get a pull token from ${registry_host}" \
+            "after 3 attempts" >&2
+        return 1
+    fi
+
+    python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])' < "$body"
 }
 
+# curl writes the -w status even when the transfer itself fails, and then
+# exits non-zero: 28 on a timeout, 7 on a refused connection. Under `set -eu`
+# that exit status propagates out of the `status=$(manifest_status ...)` the
+# loop below assigns from and kills the script on the first stalled
+# connection, so the retry never reaches a second attempt and the error text
+# further down never prints. Those transport failures are exactly what the
+# retry is for, so report the `000` curl already wrote and let the loop decide.
 manifest_status() {
     curl -sS --max-time 60 --head -o /dev/null -w '%{http_code}' \
         -H "Authorization: Bearer ${token}" \
         -H "Accept: ${accept}" \
-        "https://${registry_host}/v2/${registry_path}/$1/manifests/$2"
+        "https://${registry_host}/v2/${registry_path}/$1/manifests/$2" || true
 }
 
 token=$(request_token)
