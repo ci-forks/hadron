@@ -2111,14 +2111,19 @@ jobs:
           compression-level: 0
 
   build-grub-iso-arm64:
-    # This job hands a docker-daemon image to auroraboot. It was pinned to
-    # ubuntu-24.04-arm (#630/#640) because on ubuntu-26.04-arm auroraboot read
-    # that image back as an empty tree. The pin is lifted together with the
-    # auroraboot bump above: the version it was pinned against,
-    # v0.21.0-alpha.4, is from 2026-05-16 and carries go-containerregistry
-    # v0.20.7, which predates the daemon client rewrite that the 26.04 engine
-    # (docker 29.x on the containerd image store) needs.
-    runs-on: ubuntu-26.04-arm
+    # This job hands a docker-daemon image to auroraboot. It is pinned to
+    # ubuntu-24.04-arm (#630/#640) because on ubuntu-26.04-arm auroraboot
+    # cannot read that image back.
+    #
+    # The auroraboot version is NOT the variable. Run 37816160453 on this PR
+    # built the job on ubuntu-26.04-arm with auroraboot v0.28.0, which carries
+    # go-containerregistry v0.22.1 and the rewritten docker-daemon client, and
+    # it still failed: "dumping the source image docker:hadron-init-bios-arm64
+    # ...: reading tar: archive/tar:". The newer reader turns what v0.21.0
+    # reported as an empty tree into a hard error on the same tarball, so the
+    # defect is in what the 26.04 engine exports, not in how auroraboot reads
+    # it. Keep the pin until kairos-io/kairos#4946 has a fix for that.
+    runs-on: ubuntu-24.04-arm
     needs:
       - build-kairos-grub-arm64
     steps:
