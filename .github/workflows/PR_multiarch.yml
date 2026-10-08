@@ -1646,7 +1646,7 @@ jobs:
           mkdir build
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
           -v $PWD/build/:/output \
-          quay.io/kairos/auroraboot:v0.21.0-alpha.4 --debug build-iso --output /output/ \
+          quay.io/kairos/auroraboot:v0.28.0 --debug build-iso --output /output/ \
           --override-name kairos-hadron-bios${{ matrix.fips == 'fips' && '-fips' || '' }}-${{ github.sha }} \
           docker:hadron-init-bios${{ matrix.fips == 'fips' && '-fips' || '' }}-amd64:${{ github.sha }}
       - name: Upload artifact
@@ -1681,7 +1681,7 @@ jobs:
           -v $PWD/tests/assets/keys:/keys \
           -v $PWD/build/:/output \
           -v $PWD/tests/assets/sysext/:/overlay \
-          quay.io/kairos/auroraboot:v0.21.0-alpha.4 --debug build-uki \
+          quay.io/kairos/auroraboot:v0.28.0 --debug build-uki \
           --output-dir /output/ --public-keys /keys \
           --tpm-pcr-private-key /keys/tpm2-pcr-private.pem \
           --sb-key /keys/db.key \
@@ -2111,16 +2111,14 @@ jobs:
           compression-level: 0
 
   build-grub-iso-arm64:
-    # Pinned to 24.04 while the rest of the arm64 lane is on 26.04 (#630). This
-    # job hands a docker-daemon image to auroraboot, and on ubuntu-26.04-arm
-    # auroraboot reads it back as an empty tree: the copy into
-    # /output/temp-rootfs "finishes" in seconds, then os-release and the kernel
-    # are both missing and the ISO build dies with
-    # "No file found with prefixes: [uImage Image zImage vmlinuz image]".
-    # build-kairos-grub-arm64, which only builds and uploads that same image,
-    # is fine on 26.04 -- so it is the daemon read, not the image. Raise this
-    # back once auroraboot copes with the newer engine's image store.
-    runs-on: ubuntu-24.04-arm
+    # This job hands a docker-daemon image to auroraboot. It was pinned to
+    # ubuntu-24.04-arm (#630/#640) because on ubuntu-26.04-arm auroraboot read
+    # that image back as an empty tree. The pin is lifted together with the
+    # auroraboot bump above: the version it was pinned against,
+    # v0.21.0-alpha.4, is from 2026-05-16 and carries go-containerregistry
+    # v0.20.7, which predates the daemon client rewrite that the 26.04 engine
+    # (docker 29.x on the containerd image store) needs.
+    runs-on: ubuntu-26.04-arm
     needs:
       - build-kairos-grub-arm64
     steps:
@@ -2140,7 +2138,7 @@ jobs:
           mkdir build
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock --platform=arm64 \
           -v $PWD/build/:/output \
-          quay.io/kairos/auroraboot:v0.21.0-alpha.4 --debug build-iso --output /output/ \
+          quay.io/kairos/auroraboot:v0.28.0 --debug build-iso --output /output/ \
           --override-name kairos-hadron-bios-arm64-${{ github.sha }} \
           docker:hadron-init-bios-arm64:${{ github.sha }}
       - name: Upload artifact
