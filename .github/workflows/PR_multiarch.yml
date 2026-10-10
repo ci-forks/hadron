@@ -2111,19 +2111,24 @@ jobs:
           compression-level: 0
 
   build-grub-iso-arm64:
-    # This job hands a docker-daemon image to auroraboot. It is pinned to
-    # ubuntu-24.04-arm (#630/#640) because on ubuntu-26.04-arm auroraboot
-    # cannot read that image back.
+    # This job no longer hands auroraboot a docker-daemon image, which is why
+    # it can run on ubuntu-26.04-arm like the rest of the arm64 lane.
     #
-    # The auroraboot version is NOT the variable. Run 37816160453 on this PR
-    # built the job on ubuntu-26.04-arm with auroraboot v0.28.0, which carries
-    # go-containerregistry v0.22.1 and the rewritten docker-daemon client, and
-    # it still failed: "dumping the source image docker:hadron-init-bios-arm64
-    # ...: reading tar: archive/tar:". The newer reader turns what v0.21.0
-    # reported as an empty tree into a hard error on the same tarball, so the
-    # defect is in what the 26.04 engine exports, not in how auroraboot reads
-    # it. Keep the pin until kairos-io/kairos#4946 has a fix for that.
-    runs-on: ubuntu-24.04-arm
+    # `docker:<name>` was the reason for the ubuntu-24.04-arm pin (#630/#640,
+    # kairos-io/kairos#4946). On 26.04 the engine is docker 29.x on the
+    # containerd image store, and auroraboot reading an image back out of it
+    # gets an archive it cannot parse: an empty tree on auroraboot v0.21.0,
+    # and on v0.28.0, whose go-containerregistry v0.22.1 checks the manifest
+    # against the config, a hard "dumping the source image
+    # docker:hadron-init-bios-arm64 ...: reading tar: archive/tar:" (run
+    # 37816160453 on this PR). The auroraboot version is not the variable.
+    #
+    # build-kairos-grub-arm64 already uploads the image as a `docker save`
+    # archive, so there is no reason to load it into a daemon and then ask
+    # that daemon to write it out again. `ocifile://` points auroraboot at the
+    # archive on disk, which it reads with go-containerregistry's tarball
+    # reader, with no daemon and no docker socket in the path.
+    runs-on: ubuntu-26.04-arm
     needs:
       - build-kairos-grub-arm64
     steps:
@@ -2133,19 +2138,21 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: hadron-init-bios-arm64-image
-      - name: Load the image
+      # ocifile:// reads an uncompressed `docker save` archive. Unpacking it
+      # into its own directory keeps the bind mount below to a single path.
+      - name: Unpack the image archive
         run: |
-          gunzip -c hadron-init-bios-arm64.tar.gz | docker load
-      # AuroraBoot mounts the docker socket, so it resolves docker:<name> from
-      # the local image store that the load step above populated.
+          mkdir -p source
+          gunzip -c hadron-init-bios-arm64.tar.gz > source/image.tar
       - name: Build ISO
         run: |
           mkdir build
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock --platform=arm64 \
+          docker run --rm --platform=arm64 \
+          -v $PWD/source/:/source:ro \
           -v $PWD/build/:/output \
           quay.io/kairos/auroraboot:v0.28.0 --debug build-iso --output /output/ \
           --override-name kairos-hadron-bios-arm64-${{ github.sha }} \
-          docker:hadron-init-bios-arm64:${{ github.sha }}
+          ocifile:///source/image.tar
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
