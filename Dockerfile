@@ -105,7 +105,7 @@ ARG LIBTIRPC_VERSION=1.3.8
 ARG LIBTOOL_VERSION=2.5.4
 ARG LIBUCONTEXT_VERSION=1.5.2
 ARG LIBXML2_VERSION=2.15.4
-ARG KERNEL_VERSION=7.2.9
+ARG KERNEL_VERSION=7.2.10
 ARG LVM2_VERSION=2.03.43
 ARG LZ4_VERSION=1.10.0
 ARG M4_VERSION=1.4.21
@@ -2087,7 +2087,6 @@ WORKDIR /sources
 RUN tar -xf linux.tar.xz && mv linux-* kernel
 
 # Apply kernel patches (sorted; ignore if none).
-# LP: #2137714 — virt: vmgenid: remap memory as decrypted (fixes SEV-SNP boot on AWS).
 # 0002 — resolve_btfids: copy BTF names before mutating BTF; fixes deterministic
 # segfault during vmlinux BTF generation on musl (glibc mremap hides the bug).
 # `set -e` is required: the exit status of a `for` loop is the status of its last
