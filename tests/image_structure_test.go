@@ -550,7 +550,7 @@ var _ = Describe("hadron container image structure", Label("image-structure"), f
 		It("wires pam_pwquality into the password stack of system-auth", func() {
 			out, code := shInImage("cat /etc/pam.d/system-auth")
 			Expect(code).To(Equal(0), out)
-			Expect(out).To(MatchRegexp(`(?m)^password\s+\S+\s+pam_pwquality\.so`),
+			Expect(out).To(MatchRegexp(`(?m)^password\s+\S+\s+pam_pwquality\.so\s+.*\btry_first_pass\b`),
 				"system-auth password stack missing pam_pwquality line: %s", out)
 		})
 
