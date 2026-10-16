@@ -6,6 +6,11 @@ on:
     tags:
       - 'v*'
 
+# Read-only by default. A job that needs more (packages, attestations,
+# id-token, pull-requests) asks for it in its own permissions block.
+permissions:
+  contents: read
+
 env:
   VERSION: ${{ github.ref_name }}
   CACHE_TO: mode=max,ignore-error=true,compression=zstd,compression-level=3,oci-mediatypes=true,image-manifest=true

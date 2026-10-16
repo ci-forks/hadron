@@ -5,6 +5,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Read-only by default. A job that needs more (packages, attestations,
+# id-token, pull-requests) asks for it in its own permissions block.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-image-multiarch-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true

@@ -7,6 +7,11 @@ on:
       - 'examples/add-packages/**'
       - '.github/workflows/examples.yml'
 
+# Read-only by default. A job that needs more (packages, attestations,
+# id-token, pull-requests) asks for it in its own permissions block.
+permissions:
+  contents: read
+
 jobs:
   build:
     name: ${{ matrix.extra-file }}
