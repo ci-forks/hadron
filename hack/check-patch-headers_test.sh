@@ -112,8 +112,8 @@ mkdir -p "$tmpdir/meta"
 } >"$tmpdir/meta/0002-mail-fields-only.patch"
 expect "mail fields with no body do not count as a header" "$tmpdir/meta" 1 "0002-mail-fields-only.patch has no header"
 
-# 5. Mail fields followed by a reason are a header. This is the shape
-#    patches/kernel-patches/0002-resolve_btfids-... carries.
+# 5. Mail fields followed by a reason are a header. This is the shape a
+#    patch exported with git format-patch carries.
 mkdir -p "$tmpdir/mail"
 {
 	echo "From: Someone <someone@example.com>"
