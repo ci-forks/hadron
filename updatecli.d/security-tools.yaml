@@ -66,6 +66,66 @@ sources:
     transformers:
       - trimprefix: v
 
+  audit:
+    kind: gittag
+    spec:
+      url: https://github.com/linux-audit/audit-userspace.git
+      versionfilter:
+        kind: regex/semver
+        # Skips the odd historic tags (audit-2.7.4, v4.0.4b).
+        regex: '^v([0-9]+\.[0-9]+(?:\.[0-9]+)?)$'
+        pattern: '*'
+    transformers:
+      - trimprefix: v
+
+  cracklib:
+    kind: gittag
+    spec:
+      url: https://github.com/cracklib/cracklib.git
+      versionfilter:
+        kind: semver
+        pattern: '*'
+    transformers:
+      - trimprefix: v
+
+  libpwquality:
+    kind: gittag
+    spec:
+      url: https://github.com/libpwquality/libpwquality.git
+      versionfilter:
+        kind: regex/semver
+        regex: '^libpwquality-([0-9]+\.[0-9]+\.[0-9]+)$'
+        pattern: '*'
+    transformers:
+      - trimprefix: libpwquality-
+
+  openssl_fips:
+    # FIPS builds compile the whole of openssl, fips provider included, from
+    # OPENSSL_FIPS_VERSION, so it must only ever name a release whose fips
+    # provider holds a FIPS 140-3 certificate. A newer patch release of the
+    # same branch (3.1.8 against the validated 3.1.2) is NOT validated, so a
+    # semver constraint would be wrong here. Read the official validated list
+    # instead and take the newest FIPS 140-3 entry; a new validated release
+    # only shows up once OpenSSL adds it to that table.
+    kind: shell
+    spec:
+      command: |
+        set -eu
+        page=$(curl -fsSL --retry 3 https://openssl-library.org/source/)
+        version=$(printf '%s\n' "$page" \
+          | tr -d '\n' \
+          | sed 's#</tr>#</tr>\n#g' \
+          | grep -E '<td>FIPS 140-3</td>' \
+          | sed -nE 's#.*<tr>[[:space:]]*<td>([0-9]+\.[0-9]+\.[0-9]+)</td>.*#\1#p' \
+          | sort -V | tail -n 1)
+        if [ -z "$version" ]; then
+          echo "no FIPS 140-3 validated release found on openssl-library.org/source" >&2
+          exit 1
+        fi
+        printf '%s\n' "$version"
+    changelog:
+      url: "https://openssl-library.org/source/"
+
 targets:
   openssl:
     name: OPENSSL_VERSION in Dockerfile
@@ -126,3 +186,43 @@ targets:
         keyword: ARG
         matcher: CRYPTSETUP_VERSION
     sourceid: cryptsetup
+
+  audit:
+    name: AUDIT_VERSION in Dockerfile
+    kind: dockerfile
+    spec:
+      file: Dockerfile
+      instruction:
+        keyword: ARG
+        matcher: AUDIT_VERSION
+    sourceid: audit
+
+  cracklib:
+    name: CRACKLIB_VERSION in Dockerfile
+    kind: dockerfile
+    spec:
+      file: Dockerfile
+      instruction:
+        keyword: ARG
+        matcher: CRACKLIB_VERSION
+    sourceid: cracklib
+
+  libpwquality:
+    name: LIBPWQUALITY_VERSION in Dockerfile
+    kind: dockerfile
+    spec:
+      file: Dockerfile
+      instruction:
+        keyword: ARG
+        matcher: LIBPWQUALITY_VERSION
+    sourceid: libpwquality
+
+  openssl_fips:
+    name: OPENSSL_FIPS_VERSION in Dockerfile
+    kind: dockerfile
+    spec:
+      file: Dockerfile
+      instruction:
+        keyword: ARG
+        matcher: OPENSSL_FIPS_VERSION
+    sourceid: openssl_fips

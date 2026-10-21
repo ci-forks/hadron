@@ -221,6 +221,46 @@ sources:
     transformers:
       - trimprefix: v
 
+  argp_standalone:
+    kind: gittag
+    spec:
+      url: https://github.com/argp-standalone/argp-standalone.git
+      versionfilter:
+        kind: semver
+        pattern: '*'
+
+  musl_obstack:
+    kind: gittag
+    spec:
+      url: https://github.com/void-linux/musl-obstack.git
+      versionfilter:
+        kind: semver
+        pattern: '*'
+    transformers:
+      - trimprefix: v
+
+  elfutils:
+    # Tags look like elfutils-0.197. ls-remote avoids cloning the repo.
+    kind: shell
+    spec:
+      command: |
+        git ls-remote --refs --tags https://sourceware.org/git/elfutils.git \
+        | awk -F/ '{print $NF}' | grep -E '^elfutils-[0-9]+\.[0-9]+$' \
+        | sed 's/^elfutils-//' | sort -V | tail -n 1
+    changelog:
+      url: "https://sourceware.org/git/?p=elfutils.git;a=blob_plain;f=NEWS;hb=HEAD"
+
+  freetype:
+    # Tags look like VER-2-15-0; the tarball is freetype-2.15.0.
+    kind: shell
+    spec:
+      command: |
+        git ls-remote --refs --tags https://gitlab.freedesktop.org/freetype/freetype.git \
+        | awk -F/ '{print $NF}' | grep -E '^VER-[0-9]+-[0-9]+-[0-9]+$' \
+        | sed -e 's/^VER-//' -e 's/-/./g' | sort -V | tail -n 1
+    changelog:
+      url: "https://gitlab.freedesktop.org/freetype/freetype/-/blob/master/docs/CHANGES"
+
 targets:
   acl:
     name: ACL_VERSION in Dockerfile
@@ -401,3 +441,43 @@ targets:
         keyword: ARG
         matcher: LIBKCAPI_VERSION
     sourceid: libkcapi
+
+  argp_standalone:
+    name: ARGP_STANDALONE_VERSION in Dockerfile
+    kind: dockerfile
+    spec:
+      file: Dockerfile
+      instruction:
+        keyword: ARG
+        matcher: ARGP_STANDALONE_VERSION
+    sourceid: argp_standalone
+
+  musl_obstack:
+    name: MUSL_OBSTACK_VERSION in Dockerfile
+    kind: dockerfile
+    spec:
+      file: Dockerfile
+      instruction:
+        keyword: ARG
+        matcher: MUSL_OBSTACK_VERSION
+    sourceid: musl_obstack
+
+  elfutils:
+    name: ELFUTILS_VERSION in Dockerfile
+    kind: dockerfile
+    spec:
+      file: Dockerfile
+      instruction:
+        keyword: ARG
+        matcher: ELFUTILS_VERSION
+    sourceid: elfutils
+
+  freetype:
+    name: FREETYPE_VERSION in Dockerfile
+    kind: dockerfile
+    spec:
+      file: Dockerfile
+      instruction:
+        keyword: ARG
+        matcher: FREETYPE_VERSION
+    sourceid: freetype

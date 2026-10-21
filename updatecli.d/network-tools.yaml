@@ -86,6 +86,102 @@ sources:
       url: "https://git.kernel.org/pub/scm/linux/kernel/git/dhowells/keyutils.git/tree/"
       compare: "https://git.kernel.org/pub/scm/linux/kernel/git/dhowells/keyutils.git/diff/?id={new_tag}&id2={old_tag}"
 
+  conntrack_tools:
+    kind: gittag
+    spec:
+      url: git://git.netfilter.org/conntrack-tools
+      versionfilter:
+        kind: regex
+        # Skips the svn_t_* tags imported from the old svn history.
+        pattern: '^conntrack-tools-[0-9]+\.[0-9]+\.[0-9]+$'
+    transformers:
+      - trimprefix: conntrack-tools-
+      - sort:
+          method: semver
+    changelog:
+      url: "https://git.netfilter.org/conntrack-tools/tree/"
+      compare: "https://git.netfilter.org/conntrack-tools/diff/?id={new_tag}&id2={old_tag}"
+
+  libnetfilter_conntrack:
+    kind: gittag
+    spec:
+      url: git://git.netfilter.org/libnetfilter_conntrack
+      versionfilter:
+        kind: regex
+        # Skips the svn_t_* tags imported from the old svn history.
+        pattern: '^libnetfilter_conntrack-[0-9]+\.[0-9]+\.[0-9]+$'
+    transformers:
+      - trimprefix: libnetfilter_conntrack-
+      - sort:
+          method: semver
+    changelog:
+      url: "https://git.netfilter.org/libnetfilter_conntrack/tree/"
+      compare: "https://git.netfilter.org/libnetfilter_conntrack/diff/?id={new_tag}&id2={old_tag}"
+
+  libnetfilter_cthelper:
+    kind: gittag
+    spec:
+      url: git://git.netfilter.org/libnetfilter_cthelper
+      versionfilter:
+        kind: regex
+        # Skips the svn_t_* tags imported from the old svn history.
+        pattern: '^libnetfilter_cthelper-[0-9]+\.[0-9]+\.[0-9]+$'
+    transformers:
+      - trimprefix: libnetfilter_cthelper-
+      - sort:
+          method: semver
+    changelog:
+      url: "https://git.netfilter.org/libnetfilter_cthelper/tree/"
+      compare: "https://git.netfilter.org/libnetfilter_cthelper/diff/?id={new_tag}&id2={old_tag}"
+
+  libnetfilter_cttimeout:
+    kind: gittag
+    spec:
+      url: git://git.netfilter.org/libnetfilter_cttimeout
+      versionfilter:
+        kind: regex
+        # Skips the svn_t_* tags imported from the old svn history.
+        pattern: '^libnetfilter_cttimeout-[0-9]+\.[0-9]+\.[0-9]+$'
+    transformers:
+      - trimprefix: libnetfilter_cttimeout-
+      - sort:
+          method: semver
+    changelog:
+      url: "https://git.netfilter.org/libnetfilter_cttimeout/tree/"
+      compare: "https://git.netfilter.org/libnetfilter_cttimeout/diff/?id={new_tag}&id2={old_tag}"
+
+  libnetfilter_queue:
+    kind: gittag
+    spec:
+      url: git://git.netfilter.org/libnetfilter_queue
+      versionfilter:
+        kind: regex
+        # Skips the svn_t_* tags imported from the old svn history.
+        pattern: '^libnetfilter_queue-[0-9]+\.[0-9]+\.[0-9]+$'
+    transformers:
+      - trimprefix: libnetfilter_queue-
+      - sort:
+          method: semver
+    changelog:
+      url: "https://git.netfilter.org/libnetfilter_queue/tree/"
+      compare: "https://git.netfilter.org/libnetfilter_queue/diff/?id={new_tag}&id2={old_tag}"
+
+  libnfnetlink:
+    kind: gittag
+    spec:
+      url: git://git.netfilter.org/libnfnetlink
+      versionfilter:
+        kind: regex
+        # Skips the svn_t_* tags imported from the old svn history.
+        pattern: '^libnfnetlink-[0-9]+\.[0-9]+\.[0-9]+$'
+    transformers:
+      - trimprefix: libnfnetlink-
+      - sort:
+          method: semver
+    changelog:
+      url: "https://git.netfilter.org/libnfnetlink/tree/"
+      compare: "https://git.netfilter.org/libnfnetlink/diff/?id={new_tag}&id2={old_tag}"
+
 targets:
   iptables:
     name: IPTABLES_VERSION in Dockerfile
@@ -146,3 +242,63 @@ targets:
         keyword: ARG
         matcher: KEYUTILS_VERSION
     sourceid: keyutils
+
+  conntrack_tools:
+    name: CONNTRACK_TOOLS_VERSION in Dockerfile
+    kind: dockerfile
+    spec:
+      file: Dockerfile
+      instruction:
+        keyword: ARG
+        matcher: CONNTRACK_TOOLS_VERSION
+    sourceid: conntrack_tools
+
+  libnetfilter_conntrack:
+    name: LIBNETFILTER_CONNTRACK_VERSION in Dockerfile
+    kind: dockerfile
+    spec:
+      file: Dockerfile
+      instruction:
+        keyword: ARG
+        matcher: LIBNETFILTER_CONNTRACK_VERSION
+    sourceid: libnetfilter_conntrack
+
+  libnetfilter_cthelper:
+    name: LIBNETFILTER_CTHELPER_VERSION in Dockerfile
+    kind: dockerfile
+    spec:
+      file: Dockerfile
+      instruction:
+        keyword: ARG
+        matcher: LIBNETFILTER_CTHELPER_VERSION
+    sourceid: libnetfilter_cthelper
+
+  libnetfilter_cttimeout:
+    name: LIBNETFILTER_CTTIMEOUT_VERSION in Dockerfile
+    kind: dockerfile
+    spec:
+      file: Dockerfile
+      instruction:
+        keyword: ARG
+        matcher: LIBNETFILTER_CTTIMEOUT_VERSION
+    sourceid: libnetfilter_cttimeout
+
+  libnetfilter_queue:
+    name: LIBNETFILTER_QUEUE_VERSION in Dockerfile
+    kind: dockerfile
+    spec:
+      file: Dockerfile
+      instruction:
+        keyword: ARG
+        matcher: LIBNETFILTER_QUEUE_VERSION
+    sourceid: libnetfilter_queue
+
+  libnfnetlink:
+    name: LIBNFNETLINK_VERSION in Dockerfile
+    kind: dockerfile
+    spec:
+      file: Dockerfile
+      instruction:
+        keyword: ARG
+        matcher: LIBNFNETLINK_VERSION
+    sourceid: libnfnetlink

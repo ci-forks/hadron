@@ -184,6 +184,41 @@ sources:
 
         printf '%s' "$patch_level"
 
+  ncurses:
+    # GNU only carries the x.y releases, not the dated patch snapshots.
+    kind: shell
+    spec:
+      command: |
+        curl -fsSL --retry 3 https://ftp.gnu.org/gnu/ncurses/ \
+        | grep -oE 'ncurses-[0-9]+\.[0-9]+\.tar\.gz' \
+        | sed -e 's/^ncurses-//' -e 's/\.tar\.gz$//' | sort -V | tail -n 1
+    changelog:
+      url: "https://invisible-island.net/ncurses/NEWS.html"
+
+  procps_ng:
+    kind: gittag
+    spec:
+      url: https://gitlab.com/procps-ng/procps.git
+      versionfilter:
+        kind: semver
+        # rc tags (v4.0.7rc1, v4.0.2_rc1) are not valid semver and drop out.
+        pattern: '*'
+    transformers:
+      - trimprefix: v
+
+  less:
+    # Plain vNNN tags include betas; only vNNN-rel marks a release, the same
+    # one greenwoodsoftware.com lists as RECOMMENDED.
+    kind: gittag
+    spec:
+      url: https://github.com/gwsw/less.git
+      versionfilter:
+        kind: regex/semver
+        regex: '^v([0-9]+)-rel$'
+        pattern: '*'
+    transformers:
+      - trimprefix: v
+      - trimsuffix: -rel
 
 targets:
   musl:
@@ -305,3 +340,33 @@ targets:
         keyword: ARG
         matcher: PATCH_LEVEL
     sourceid: bash_patch_level
+
+  ncurses:
+    name: NCURSES_VERSION in Dockerfile
+    kind: dockerfile
+    spec:
+      file: Dockerfile
+      instruction:
+        keyword: ARG
+        matcher: NCURSES_VERSION
+    sourceid: ncurses
+
+  procps_ng:
+    name: PROCPS_NG_VERSION in Dockerfile
+    kind: dockerfile
+    spec:
+      file: Dockerfile
+      instruction:
+        keyword: ARG
+        matcher: PROCPS_NG_VERSION
+    sourceid: procps_ng
+
+  less:
+    name: LESS_VERSION in Dockerfile
+    kind: dockerfile
+    spec:
+      file: Dockerfile
+      instruction:
+        keyword: ARG
+        matcher: LESS_VERSION
+    sourceid: less

@@ -94,6 +94,29 @@ sources:
     changelog:
       url: "https://git.kernel.org/pub/scm/linux/kernel/git/wens/wireless-regdb.git/log/"
 
+  shim:
+    # githubrelease, not gittag: go-git cannot list this repo's tags (one of
+    # them points at an object type it does not support).
+    kind: githubrelease
+    spec:
+      owner: rhboot
+      repository: shim
+      versionfilter:
+        kind: semver
+        # rc tags are prereleases and the shim-15.3-rcN / latest-release tags
+        # are not semver, so both drop out.
+        pattern: '*'
+
+  unifont:
+    # No git repo; releases are directories named unifont-16.0.04/.
+    kind: shell
+    spec:
+      command: |
+        curl -fsSL --retry 3 https://unifoundry.com/pub/unifont/ \
+        | grep -oE 'unifont-[0-9]+\.[0-9]+\.[0-9]+/' \
+        | sed -e 's/^unifont-//' -e 's#/$##' | sort -V | tail -n 1
+    changelog:
+      url: "https://unifoundry.com/unifont/index.html"
 
 targets:
   kernel:
@@ -175,3 +198,23 @@ targets:
         keyword: ARG
         matcher: WIRELESS_REGDB_VERSION
     sourceid: wireless_regdb
+
+  shim:
+    name: SHIM_VERSION in Dockerfile
+    kind: dockerfile
+    spec:
+      file: Dockerfile
+      instruction:
+        keyword: ARG
+        matcher: SHIM_VERSION
+    sourceid: shim
+
+  unifont:
+    name: UNIFONT_VERSION in Dockerfile
+    kind: dockerfile
+    spec:
+      file: Dockerfile
+      instruction:
+        keyword: ARG
+        matcher: UNIFONT_VERSION
+    sourceid: unifont

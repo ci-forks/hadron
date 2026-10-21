@@ -10,28 +10,28 @@ The configuration is organized into logical groups:
   - curl, rsync, xxhash, zstd, lz4, zlib, xzutils, gzip
 
 - **system-libraries.yaml** - System-level libraries
-  - acl, attr, libcap, libmnl, libnftnl, seccomp, libffi, libaio, dbus, expat, popt, libxml2, jsonc, fts, libelf, libiconv, pcre2, libkcapi
+  - acl, attr, libcap, libmnl, libnftnl, seccomp, libffi, libaio, dbus, expat, popt, libxml2, jsonc, fts, libelf, libiconv, pcre2, libkcapi, argp-standalone, musl-obstack, elfutils, freetype
 
 - **build-tools.yaml** - Build and development tools
   - flex, bison, autoconf, automake, libtool, cmake, make, m4, gawk, pkgconfig, binutils
 
 - **core-system.yaml** - Core system components
-  - musl, busybox, systemd, util-linux, coreutils, findutils, grep, gperf, diffutils, readline, bash
+  - musl, busybox, systemd, util-linux, coreutils, findutils, grep, gperf, diffutils, readline, bash, ncurses, procps-ng, less
 
 - **compiler-tools.yaml** - Compiler and language tools
   - gcc, gmp, mpc, mpfr, perl
 
 - **security-tools.yaml** - Security-related packages
-  - openssl, openssh, sudo, pam, shadow, cryptsetup
+  - openssl, openssh, sudo, pam, shadow, cryptsetup, audit, cracklib, libpwquality, openssl-fips
 
 - **storage-tools.yaml** - Storage and filesystem tools
   - lvm2, multipath-tools, e2fsprogs, dosfstools, parted, urcu
 
 - **kernel-and-boot.yaml** - Kernel and boot-related packages
-  - kernel, kmod, dracut, grub, kbd, dwarves, libbpf, wireless-regdb
+  - kernel, kmod, dracut, grub, kbd, wireless-regdb, shim, unifont, dwarves, libbpf
 
 - **network-tools.yaml** - Network utilities
-  - iptables, open-iscsi, strace
+  - iptables, open-iscsi, strace, conntrack-tools, libnetfilter_conntrack, libnetfilter_cthelper, libnetfilter_cttimeout, libnetfilter_queue, libnfnetlink
 
 - **misc-tools.yaml** - Miscellaneous tools
   - python, sqlite3, tpm2-tss, pax-utils, ca-certificates, aports, tzdata, tzcode, gdb, bc, patch
@@ -149,6 +149,22 @@ versionfilter:
   kind: semver
   constraint: '^14'
 ```
+
+### OpenSSL FIPS Version
+`OPENSSL_FIPS_VERSION` builds the whole of openssl in FIPS images, fips provider
+included, so it may only name a release whose fips provider is FIPS 140-3
+validated. A newer patch release of the validated branch is not validated, so a
+semver constraint cannot express this. The `openssl_fips` source in
+`security-tools.yaml` reads the validated table on
+<https://openssl-library.org/source/> and takes the newest FIPS 140-3 entry.
+
+### Not tracked
+- `SBAT_DISTRO_VERSION` is ours, bumped by hand on an SBAT revocation.
+- `MUSSEL_VERSION` and `MUSL_TOOLCHAIN_VERSION` build the stage0 cross toolchain.
+  mussel has no tags or releases, only commits on `main`, and it pins its own musl
+  version and checksum, so the two must move together with the
+  `musl-<version>.tar.gz` path stage0 copies the tarball to. Every bump also
+  throws away the stage0 cache. Bump them by hand.
 
 ### Bash Patch Level
 Bash uses two Updatecli values in `/home/runner/work/hadron/hadron/Dockerfile`: `BASH_VERSION` and `PATCH_LEVEL`.
