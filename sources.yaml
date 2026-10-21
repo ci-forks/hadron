@@ -397,7 +397,7 @@ packages:
 
   libbpf:
     version_arg: LIBBPF_VERSION
-    sha256: 53492aff6dd47e4da04ef5e672d753b9743848bdb38e9d90eafbe190b7983c44
+    sha256: b7a1e685f90f6a63ead0dd85d053694b222975da8d09c1a966041cff6f0055ff
     urls:
       - https://github.com/libbpf/libbpf/archive/refs/tags/v${version}.tar.gz
     filename: libbpf.tar.gz

@@ -69,6 +69,18 @@ sources:
     changelog:
       url: "https://github.com/acmel/dwarves/releases"
 
+  libbpf:
+    kind: gittag
+    spec:
+      url: https://github.com/libbpf/libbpf.git
+      versionfilter:
+        kind: semver
+        pattern: '*'
+    transformers:
+      - trimprefix: v
+    changelog:
+      url: "https://github.com/libbpf/libbpf/releases"
+
   wireless_regdb:
     # Releases are tagged master-YYYY-MM-DD and published as
     # wireless-regdb-YYYY.MM.DD.tar.xz, so the tag maps to the version by
@@ -143,6 +155,16 @@ targets:
         keyword: ARG
         matcher: DWARVES_VERSION
     sourceid: dwarves
+
+  libbpf:
+    name: LIBBPF_VERSION in Dockerfile
+    kind: dockerfile
+    spec:
+      file: Dockerfile
+      instruction:
+        keyword: ARG
+        matcher: LIBBPF_VERSION
+    sourceid: libbpf
 
   wireless_regdb:
     name: WIRELESS_REGDB_VERSION in Dockerfile
