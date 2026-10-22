@@ -137,9 +137,10 @@ packages:
 
   ca-certificates:
     version_arg: CA_CERTIFICATES_VERSION
-    sha256: 32ca73f2e81e2b88dc614f12e1ee04a82b1ec5a8e29d9f359ddf8905a0afcbb0
+    sha256: 1048bc7f50fa42a6621bc2f8816173f89a0c0098f26dff072bc8fe40af714400
     urls:
       - https://gitlab.alpinelinux.org/alpine/ca-certificates/-/archive/${version}/ca-certificates-${version}.tar.bz2
+      - https://distfiles.alpinelinux.org/distfiles/edge/ca-certificates-${version}.tar.bz2
     filename: ca-certificates.tar.bz2
 
   cmake:
