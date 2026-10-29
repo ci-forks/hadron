@@ -3602,10 +3602,12 @@ RUN chmod 644 /pam/etc/shells
 
 ## cracklib supplies the FascistCheck routine libpwquality links against
 ## for CIS L1 5.4.1 password quality checks in pam_pwquality. The
-## dictionary is not shipped: without it FascistCheck falls back to the
-## complexity and length checks pwquality.conf already enforces, which
-## is what the benchmark requires. Adding the ~4MB compiled words file
-## would satisfy an optional "dictcheck" that CIS does not mandate.
+## dictionary has to be compiled and shipped: without pw_dict every
+## FascistCheck call fails with "error loading dictionary", pam_pwquality
+## rejects every new password and a non-root user cannot change theirs.
+## The upstream install target does not produce it, because
+## create-cracklib-dict pipes the plain word list through gzip and
+## writes nothing, so cracklib-packer builds it directly below.
 FROM rsync AS cracklib
 ARG JOBS
 ARG MAX_LOAD
@@ -3617,6 +3619,7 @@ RUN tar -xf cracklib.tar.bz2 && mv cracklib-* cracklib
 WORKDIR /sources/cracklib
 RUN ./configure ${COMMON_CONFIGURE_ARGS} --prefix=/usr --sysconfdir=/etc --without-python --disable-nls
 RUN make -s -j${JOBS} ${MAX_LOAD:+-l${MAX_LOAD}} && make -s -j${JOBS} ${MAX_LOAD:+-l${MAX_LOAD}} install DESTDIR=/cracklib
+RUN sort -u /cracklib/usr/share/cracklib/cracklib-small | LD_LIBRARY_PATH=/cracklib/usr/lib /cracklib/usr/sbin/cracklib-packer /cracklib/usr/share/cracklib/pw_dict
 
 ## libpwquality supplies pam_pwquality.so, the module CIS L1 5.4.1
 ## expects in the password stack. Runtime configuration lives at

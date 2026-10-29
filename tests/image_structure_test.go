@@ -596,6 +596,27 @@ var _ = Describe("hadron container image structure", Label("image-structure"), f
 				"system-auth password stack missing pam_pwquality line: %s", out)
 		})
 
+		It("ships the compiled cracklib dictionary", func() {
+			out, code := shInImage(
+				"ls /usr/share/cracklib/pw_dict.pwd* /usr/share/cracklib/pw_dict.pwi /usr/share/cracklib/pw_dict.hwm 2>&1")
+			Expect(code).To(Equal(0),
+				"compiled cracklib dictionary missing, pam_pwquality cannot check passwords: %s", out)
+		})
+
+		It("lets a non-root user change their own password", func() {
+			// Piped input works for passwd here: it reads the current
+			// password, then the new one twice. The new password is long
+			// and random enough to pass the pwquality rules, so a failure
+			// means the dictionary check itself is broken.
+			out, code := shInImage(`useradd -M alice >/dev/null 2>&1 &&
+echo 'alice:Initial-Pass-4821' | chpasswd 2>&1 &&
+printf 'Initial-Pass-4821\nZq7!vLm2#Rt9xWp\nZq7!vLm2#Rt9xWp\n' | su alice -s /bin/sh -c passwd 2>&1`)
+			Expect(code).To(Equal(0), "non-root passwd failed: %s", out)
+			Expect(out).ToNot(ContainSubstring("error loading dictionary"))
+			Expect(out).ToNot(ContainSubstring("BAD PASSWORD"))
+			Expect(out).To(ContainSubstring("password updated successfully"))
+		})
+
 		It("wires pam_faillock into the auth stack of system-auth", func() {
 			out, code := shInImage("cat /etc/pam.d/system-auth")
 			Expect(code).To(Equal(0), out)
