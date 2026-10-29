@@ -4000,7 +4000,10 @@ COPY --from=curl /curl/ /merge/
 COPY --from=rsync /rsync/ /merge/
 COPY --from=gcc-stage0 /sysroot /gcc
 RUN rsync -aHAX --keep-dirlinks /gcc/. /merge
-COPY --from=musl-stage0 /sysroot /musl
+# Take libc from the musl stage, not musl-stage0: only the musl stage carries
+# the CVE-2026-107891 regcomp patch, and the toolchain image must ship the
+# same libc as the OS image.
+COPY --from=musl /sysroot /musl
 RUN rsync -aHAX --keep-dirlinks /musl/. /merge
 COPY --from=make-stage0 /sysroot /make
 RUN rsync -aHAX --keep-dirlinks /make/. /merge
