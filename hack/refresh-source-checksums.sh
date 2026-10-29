@@ -20,6 +20,10 @@
 # serves has its ARG reverted to the committed value and is reported as
 # skipped, so one unfetchable package costs its own bump instead of the
 # whole group's.
+#
+# The bash patch checksums in files/bash/patches.sha256 are refreshed along
+# with the `bash` package, and under `--changed` whenever BASH_VERSION or
+# PATCH_LEVEL moved. A PATCH_LEVEL no mirror serves is reverted the same way.
 
 set -eu
 
@@ -133,14 +137,115 @@ else
     cut -f1 "$work/packages" | sort > "$work/selected"
 fi
 
-if [ ! -s "$work/selected" ]; then
+: > "$work/skipped"
+: > "$work/skipped-patches"
+updated=0
+unchanged=0
+
+# Put `ARG <name>=` back to its HEAD:Dockerfile default and leave that
+# default in $reverted_to.
+revert_arg() {
+    reverted_to=$(git show HEAD:Dockerfile | parse_args | awk -v want="$1" '$1 == want { print $2; exit }')
+    if [ -z "$reverted_to" ]; then
+        echo "error: cannot revert $1, it has no default in HEAD:Dockerfile" >&2
+        exit 1
+    fi
+    awk -v arg="$1" -v val="$reverted_to" '
+        index($0, "ARG " arg "=") == 1 { print "ARG " arg "=" val; next }
+        { print }
+    ' Dockerfile > "$work/Dockerfile.new"
+    mv "$work/Dockerfile.new" Dockerfile
+}
+
+# The upstream bash patches are single files, not a tarball, so they have no
+# sources.yaml entry and no cache image. The bash-download stage fetches
+# patches 1 to PATCH_LEVEL of BASH_VERSION from the GNU mirrors and checks
+# each one against this file, which holds one `sha256  name` line per patch.
+bash_patches=files/bash/patches.sha256
+
+refresh_bash_patches() {
+    if ! bash_version=$(version_of BASH_VERSION); then
+        echo "error: no ARG BASH_VERSION= default in Dockerfile" >&2
+        exit 1
+    fi
+    level=$(version_of PATCH_LEVEL)
+    case "$level" in
+        ''|*[!0-9]*)
+            echo "error: ARG PATCH_LEVEL=$level is not a number" >&2
+            exit 1
+            ;;
+    esac
+    mirrors=''
+    for name in GNU_MIRROR_1 GNU_MIRROR_2 GNU_MIRROR_3; do
+        if mirror=$(version_of "$name"); then
+            mirrors="$mirrors $mirror"
+        fi
+    done
+    if [ -z "$mirrors" ]; then
+        echo "error: no ARG GNU_MIRROR_1/2/3= default in Dockerfile" >&2
+        exit 1
+    fi
+
+    nodot=$(printf '%s\n' "$bash_version" | tr -d '.')
+    : > "$work/patches.new"
+    i=1
+    while [ "$i" -le "$level" ]; do
+        patch_name=$(printf 'bash%s-%03d' "$nodot" "$i")
+        sum=''
+        for mirror in $mirrors; do
+            rm -f "$work/patch"
+            if curl -fsSL --retry 2 --max-time 120 "$mirror/bash/bash-$bash_version-patches/$patch_name" -o "$work/patch"; then
+                sum=$(sha256sum "$work/patch" | awk '{print $1}')
+                break
+            fi
+        done
+        rm -f "$work/patch"
+        if [ -z "$sum" ]; then
+            echo "warning: no mirror served $patch_name, leaving $bash_patches alone" >&2
+            echo "bash-patches PATCH_LEVEL $bash_version-$level" >> "$work/skipped-patches"
+            return 1
+        fi
+        printf '%s  %s\n' "$sum" "$patch_name" >> "$work/patches.new"
+        i=$((i + 1))
+    done
+
+    if cmp -s "$work/patches.new" "$bash_patches"; then
+        unchanged=$((unchanged + 1))
+        return 0
+    fi
+    mv "$work/patches.new" "$bash_patches"
+    echo "bash patches $bash_version up to $level: rewrote $bash_patches"
+    updated=$((updated + 1))
+}
+
+patches_selected=0
+if [ -f "$bash_patches" ] && version_of PATCH_LEVEL >/dev/null; then
+    if [ "$changed_only" -eq 1 ]; then
+        if grep -qx -e BASH_VERSION -e PATCH_LEVEL "$work/changed-args"; then
+            patches_selected=1
+        fi
+    elif grep -qx bash "$work/selected"; then
+        patches_selected=1
+    fi
+fi
+
+# Runs before the tarballs so that, under --changed, a bash bump whose
+# patches no mirror serves is reverted before its tarball checksum moves.
+if [ "$patches_selected" -eq 1 ] && ! refresh_bash_patches && [ "$changed_only" -eq 1 ]; then
+    for name in BASH_VERSION PATCH_LEVEL; do
+        grep -qx "$name" "$work/changed-args" || continue
+        revert_arg "$name"
+        echo "reverted $name to $reverted_to (bash patches were not fetchable)"
+    done
+    parse_args < Dockerfile > "$work/args"
+    grep -vx bash "$work/selected" > "$work/selected.new" || true
+    mv "$work/selected.new" "$work/selected"
+fi
+
+if [ ! -s "$work/selected" ] && [ "$patches_selected" -eq 0 ]; then
     echo "no packages to refresh"
     exit 0
 fi
-
-: > "$work/skipped"
-updated=0
-unchanged=0
 
 while IFS='	' read -r pkg va sha fn urls; do
     grep -qx "$pkg" "$work/selected" || continue
@@ -213,28 +318,31 @@ done < "$work/packages"
 # the ARG back so the rest of the group still lands.
 if [ "$changed_only" -eq 1 ] && [ -s "$work/skipped" ]; then
     while read -r pkg va version; do
-        old=$(git show HEAD:Dockerfile | parse_args | awk -v want="$va" '$1 == want { print $2; exit }')
-        if [ -z "$old" ]; then
-            echo "error: cannot revert $va, it has no default in HEAD:Dockerfile" >&2
-            exit 1
+        revert_arg "$va"
+        echo "reverted $pkg to $reverted_to ($version was not fetchable)"
+        # The patch checksums were written for the bash version that is
+        # being dropped, so they go back to HEAD along with PATCH_LEVEL.
+        if [ "$va" = BASH_VERSION ] && [ "$patches_selected" -eq 1 ]; then
+            if grep -qx PATCH_LEVEL "$work/changed-args"; then
+                revert_arg PATCH_LEVEL
+                echo "reverted PATCH_LEVEL to $reverted_to (bash $version was not fetchable)"
+            fi
+            if git cat-file -e "HEAD:$bash_patches" 2>/dev/null; then
+                git show "HEAD:$bash_patches" > "$bash_patches"
+            fi
         fi
-        awk -v arg="$va" -v val="$old" '
-            index($0, "ARG " arg "=") == 1 { print "ARG " arg "=" val; next }
-            { print }
-        ' Dockerfile > "$work/Dockerfile.new"
-        mv "$work/Dockerfile.new" Dockerfile
-        echo "reverted $pkg to $old ($version was not fetchable)"
     done < "$work/skipped"
 fi
 
-echo "refreshed $updated checksum(s), $unchanged already current, $(wc -l < "$work/skipped" | tr -d ' ') skipped"
+cat "$work/skipped" "$work/skipped-patches" > "$work/skipped-all"
+echo "refreshed $updated checksum(s), $unchanged already current, $(wc -l < "$work/skipped-all" | tr -d ' ') skipped"
 
-if [ -n "${GITHUB_STEP_SUMMARY-}" ] && [ -s "$work/skipped" ]; then
+if [ -n "${GITHUB_STEP_SUMMARY-}" ] && [ -s "$work/skipped-all" ]; then
     {
         echo "### Bumps dropped, no URL served the tarball"
         echo
         while read -r pkg _ version; do
             echo "- \`$pkg\` $version"
-        done < "$work/skipped"
+        done < "$work/skipped-all"
     } >> "$GITHUB_STEP_SUMMARY"
 fi

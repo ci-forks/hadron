@@ -47,6 +47,7 @@ ARG ATTR_VERSION=2.6.0
 ARG AUDIT_VERSION=4.2.1
 ARG AUTOCONF_VERSION=2.73
 ARG AUTOMAKE_VERSION=1.18.1
+ARG BASH_VERSION=5.3
 ARG BC_VERSION=7.1.0
 ARG BINUTILS_VERSION=2.47
 ARG BISON_VERSION=3.8.2
@@ -346,29 +347,37 @@ FROM ${SOURCES_REPO}/tpm2-tss:${TPM2_TSS_VERSION} AS tpm2-tss-download
 FROM ${SOURCES_REPO}/libucontext:${LIBUCONTEXT_VERSION} AS libucontext-download
 FROM ${SOURCES_REPO}/libxml2:${LIBXML2_VERSION} AS libxml2-download
 FROM ${SOURCES_REPO}/gzip:${GZIP_VERSION} AS gzip-download
+FROM ${SOURCES_REPO}/bash:${BASH_VERSION} AS bash-tarball-download
 FROM sources-downloader-base AS bash-download
-ARG BASH_VERSION=5.3
 # Patch level is the number of patches upstream bash has released for this version https://ftp.gnu.org/gnu/bash/bash-${BASH_VERSION}-patches/
 # It is bumped separately from BASH_VERSION by updatecli.d/core-system.yaml
 ARG PATCH_LEVEL=20
+COPY --from=bash-tarball-download /sources/downloads/bash.tar.gz /sources/downloads/
+# The version is read from the top directory of the tarball instead of a stage
+# ARG, so BASH_VERSION keeps a single default for updatecli and for hand bumps.
+RUN tar -xf bash.tar.gz && rm bash.tar.gz && src=$(echo bash-*) && echo "${src#bash-}" > /sources/bash-version && mv "${src}" bash
 # Get the patches from https://ftp.gnu.org/gnu/bash/bash-${BASH_VERSION}-patches/
 # They are in the format bash$BASH_VERSION_NO_DOT-NNN where NNN is a 3-digit zero-padded index
 # starting at 001.
-RUN for mirror in ${GNU_MIRROR_1} ${GNU_MIRROR_2} ${GNU_MIRROR_3}; do \
-        wget -q -T 30 -t 1 "${mirror}/bash/bash-${BASH_VERSION}.tar.gz" -O bash-${BASH_VERSION}.tar.gz && break; \
-        rm -f bash-${BASH_VERSION}.tar.gz; \
-    done; \
-    test -s bash-${BASH_VERSION}.tar.gz; \
-    tar -xf bash-${BASH_VERSION}.tar.gz && mv bash-${BASH_VERSION} bash
+# Each patch has to match its sha256 in files/bash/patches.sha256 before it is applied.
+# hack/refresh-source-checksums.sh rewrites that file when BASH_VERSION or PATCH_LEVEL moves.
+COPY files/bash/patches.sha256 /sources/bash-patches.sha256
 WORKDIR /sources/downloads/bash
-RUN for i in $(seq 1 ${PATCH_LEVEL}); do \
+RUN bash_version=$(cat /sources/bash-version); \
+    for i in $(seq 1 ${PATCH_LEVEL}); do \
         patch_num=$(printf '%03d' ${i}); \
-        echo "Applying bash patch bash${BASH_VERSION//./}-${patch_num}"; \
+        patch_name=bash${bash_version//./}-${patch_num}; \
+        expected=$(awk -v f="${patch_name}" '$2 == f { print $1 }' /sources/bash-patches.sha256); \
+        test -n "${expected}" || { echo "No sha256 pinned for ${patch_name} in files/bash/patches.sha256, run hack/refresh-source-checksums.sh bash"; exit 1; }; \
+        echo "Applying bash patch ${patch_name}"; \
+        matched=0; \
         for mirror in ${GNU_MIRROR_1} ${GNU_MIRROR_2} ${GNU_MIRROR_3}; do \
-            wget -q -T 30 -t 1 "${mirror}/bash/bash-${BASH_VERSION}-patches/bash${BASH_VERSION//./}-${patch_num}" -O bash-patch-${patch_num}.patch && break; \
             rm -f bash-patch-${patch_num}.patch; \
+            wget -q -T 30 -t 1 "${mirror}/bash/bash-${bash_version}-patches/${patch_name}" -O bash-patch-${patch_num}.patch || continue; \
+            printf '%s  %s\n' "${expected}" bash-patch-${patch_num}.patch > /tmp/bash-patch.sha256; \
+            if sha256sum -c /tmp/bash-patch.sha256; then matched=1; break; fi; \
         done; \
-        test -s bash-patch-${patch_num}.patch || { echo "Failed to download bash patch ${patch_num} from all mirrors"; exit 1; }; \
+        test "${matched}" -eq 1 || { echo "No mirror served bash patch ${patch_name} with the pinned sha256"; exit 1; }; \
         patch -p0 < bash-patch-${patch_num}.patch; \
     done
 WORKDIR /sources/downloads

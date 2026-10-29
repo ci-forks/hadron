@@ -104,6 +104,15 @@ packages:
       - https://mirror.netcologne.de/gnu/automake/automake-${version}.tar.xz
     filename: automake.tar.xz
 
+  bash:
+    version_arg: BASH_VERSION
+    sha256: 0d5cd86965f869a26cf64f4b71be7b96f90a3ba8b3d74e27e8e9d9d5550f31ba
+    urls:
+      - https://ftpmirror.gnu.org/bash/bash-${version}.tar.gz
+      - https://ftp.gnu.org/gnu/bash/bash-${version}.tar.gz
+      - https://mirror.netcologne.de/gnu/bash/bash-${version}.tar.gz
+    filename: bash.tar.gz
+
   bc:
     version_arg: BC_VERSION
     sha256: 1f13663ba0f2435b684321714a4d0b9fff32bb951fc78dc7424cd69bba5c0d3a

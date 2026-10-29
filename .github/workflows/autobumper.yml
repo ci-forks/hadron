@@ -144,7 +144,7 @@ jobs:
             make update-kernel-configs
           fi
 
-          git add Dockerfile sources.yaml
+          git add Dockerfile sources.yaml files/bash/patches.sha256
 
           # For kernel-and-boot, also stage the regenerated kernel config files
           if [ "${{ matrix.config }}" = "kernel-and-boot" ]; then
